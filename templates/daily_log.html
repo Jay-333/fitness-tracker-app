@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+<!-- {# {% from "_formhelpers.html" import render_field %} {# Assumes you might create this later #} #} -->
+
+{% block title %}Daily Log - {{ current_date_obj.strftime('%Y-%m-%d') }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <a href="{{ url_for('daily_log', date=prev_date) }}" class="btn btn-outline-secondary">< Prev Day</a>
+    <h2 class="mb-0">Log for: {{ current_date_obj.strftime('%B %d, %Y') }}</h2>
+    <a href="{{ url_for('daily_log', date=next_date) }}" class="btn btn-outline-secondary">Next Day ></a>
+</div>
+
+<!-- Daily Summary Card -->
+<div class="card mb-4">
+    <div class="card-header">Daily Totals</div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col">
+                <span class="nutrient-label d-block">Calories</span>
+                <span class="nutrient-value">{{ daily_summary.calories | round(0) }} kcal</span>
+            </div>
+            <div class="col">
+                <span class="nutrient-label d-block">Protein</span>
+                <span class="nutrient-value">{{ daily_summary.protein | round(1) }} g</span>
+            </div>
+             <div class="col">
+                <span class="nutrient-label d-block">Carbs</span>
+                <span class="nutrient-value">{{ daily_summary.carbs | round(1) }} g</span>
+            </div>
+             <div class="col">
+                <span class="nutrient-label d-block">Fat</span>
+                <span class="nutrient-value">{{ daily_summary.fat | round(1) }} g</span>
+            </div>
+            <div class="col">
+                <span class="nutrient-label d-block">Fiber</span>
+                <span class="nutrient-value">{{ daily_summary.fiber | round(1) }} g</span>
+            </div>
+            <!-- Add other summary nutrients here -->
+        </div>
+    </div>
+</div>
+
+
+<!-- Meal Sections -->
+<div class="row">
+    {% for meal in meal_types %}
+    <div class="col-md-6">
+        <div class="card meal-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>{{ meal }}</span>
+                <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#add{{ meal | replace(' ', '') }}Form" aria-expanded="false" aria-controls="add{{ meal | replace(' ', '') }}Form">
+                    + Add Food
+                </button>
+            </div>
+
+            <!-- Add Food Form (Collapsible) -->
+            <div class="collapse" id="add{{ meal | replace(' ', '') }}Form">
+                <div class="card-body bg-light border-top">
+                    <form method="POST" action="{{ url_for('daily_log', date=current_date_str) }}">
+                        {{ log_form.csrf_token }}
+                        {{ log_form.meal_type(value=meal) }} {# Set hidden meal type #}
+                        {{ log_form.log_date(value=current_date_str) }} {# Set hidden date #}
+
+                        <div class="mb-3">
+                           <label for="{{ log_form.food_id.id }}" class="form-label">{{ log_form.food_id.label }}</label>
+                           {{ log_form.food_id(class="form-select form-select-sm") }}
+                           {% if log_form.food_id.errors %}
+                             <div class="invalid-feedback d-block">
+                               {% for error in log_form.food_id.errors %}{{ error }}{% endfor %}
+                             </div>
+                           {% endif %}
+                        </div>
+                         <div class="mb-3">
+                            <label for="{{ log_form.quantity_consumed.id }}" class="form-label">
+                                {{ log_form.quantity_consumed.label }} <small class="text-muted">(in base unit)</small>
+                            </label>
+                            {{ log_form.quantity_consumed(class="form-control form-control-sm", placeholder="e.g., 100") }}
+                            {% if log_form.quantity_consumed.errors %}
+                              <div class="invalid-feedback d-block">
+                                {% for error in log_form.quantity_consumed.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
+                        </div>
+                        {{ log_form.submit(class="btn btn-success btn-sm") }}
+                    </form>
+                </div>
+            </div>
+
+
+            <!-- Logged Items Table -->
+            <div class="card-body">
+                {% if logs_by_meal[meal] %}
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>Food</th>
+                            <th>Qty</th>
+                            <th>Unit</th>
+                            <th>Cal</th>
+                            <th>P</th>
+                            <th>C</th>
+                            <th>F</th>
+                            <th>Fib</th>
+                            <th></th> {# Action column #}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs_by_meal[meal] %}
+                        <tr>
+                            <td>{{ log.food.name }}</td>
+                            <td>{{ log.quantity_consumed | round(1) }}</td>
+                            <td>{{ log.food.base_unit }}</td>
+                            <td>{{ log.calculated_calories | round(0) }}</td>
+                            <td>{{ log.calculated_protein | round(1) }}</td>
+                            <td>{{ log.calculated_carbs | round(1) }}</td>
+                            <td>{{ log.calculated_fat | round(1) }}</td>
+                            <td>{{ log.calculated_fiber | round(1) }}</td>
+                            <td>
+                                <form method="POST" action="{{ url_for('delete_log_entry', log_id=log.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Are you sure you want to delete this entry?');">×</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted text-center">No items logged for {{ meal }}.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Add any future JS here (e.g., dynamically updating unit label based on selected food)
+    console.log("Daily log page loaded for {{ current_date_str }}");
+</script>
+{% endblock %}

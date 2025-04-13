@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Food Database{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Food Database</h2>
+    <a href="{{ url_for('add_food') }}" class="btn btn-primary">Add New Food</a>
+</div>
+
+{% if foods %}
+<div class="table-responsive">
+<table class="table table-striped table-hover">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Base Unit</th>
+            <th>Base Qty</th>
+            <th>Calories</th>
+            <th>Protein (g)</th>
+            <th>Carbs (g)</th>
+            <th>Fat (g)</th>
+            <th>Fiber (g)</th>
+            <th>Notes</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for food in foods %}
+        <tr>
+            <td>{{ food.name }}</td>
+            <td>{{ food.base_unit }}</td>
+            <td>{{ food.base_quantity | round(1) }}</td>
+            <td>{{ food.calories | round(0) }}</td>
+            <td>{{ food.protein | round(1) }}</td>
+            <td>{{ food.carbs | round(1) }}</td>
+            <td>{{ food.fat | round(1) }}</td>
+            <td>{{ food.fiber | round(1) }}</td>
+            <td>{{ food.notes[:50] + '...' if food.notes and food.notes|length > 50 else food.notes }}</td>
+            <td>
+                <a href="{{ url_for('edit_food', food_id=food.id) }}" class="btn btn-sm btn-warning mb-1 d-inline-block">Edit</a>
+                <form method="POST" action="{{ url_for('delete_food', food_id=food.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete \'{{ food.name }}\' and all its logs? This cannot be undone.');">
+                    <button type="submit" class="btn btn-sm btn-danger mb-1">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<div class="alert alert-info">No food items found in the database. <a href="{{ url_for('add_food') }}">Add one now!</a></div>
+{% endif %}
+{% endblock %}

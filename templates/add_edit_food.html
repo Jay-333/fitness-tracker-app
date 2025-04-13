@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+<!-- {#{% from "_formhelpers.html" import render_field %} {# Assumes you might create this later #} #} -->
+
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h2>{{ title }}</h2>
+
+<form method="POST" action="{{ action_url }}">
+    {{ form.csrf_token }}
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label for="{{ form.name.id }}" class="form-label">{{ form.name.label }}</label>
+            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+            {% if form.name.errors %}
+                <div class="invalid-feedback">{% for error in form.name.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-3">
+            <label for="{{ form.base_unit.id }}" class="form-label">{{ form.base_unit.label }}</label>
+             {{ form.base_unit(class="form-control" + (" is-invalid" if form.base_unit.errors else ""), placeholder="e.g., g, ml, cup") }}
+             {% if form.base_unit.errors %}
+                <div class="invalid-feedback">{% for error in form.base_unit.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-3">
+            <label for="{{ form.base_quantity.id }}" class="form-label">{{ form.base_quantity.label }}</label>
+            {{ form.base_quantity(class="form-control" + (" is-invalid" if form.base_quantity.errors else ""), type="number", step="any") }}
+            <small class="form-text text-muted">Quantity for which nutrients below are defined.</small>
+             {% if form.base_quantity.errors %}
+                <div class="invalid-feedback">{% for error in form.base_quantity.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-3">
+            <label for="{{ form.calories.id }}" class="form-label">{{ form.calories.label }}</label>
+            {{ form.calories(class="form-control" + (" is-invalid" if form.calories.errors else ""), type="number", step="any") }}
+             {% if form.calories.errors %}
+                <div class="invalid-feedback">{% for error in form.calories.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-3">
+            <label for="{{ form.protein.id }}" class="form-label">{{ form.protein.label }}</label>
+            {{ form.protein(class="form-control" + (" is-invalid" if form.protein.errors else ""), type="number", step="any") }}
+             {% if form.protein.errors %}
+                <div class="invalid-feedback">{% for error in form.protein.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-3">
+            <label for="{{ form.carbs.id }}" class="form-label">{{ form.carbs.label }}</label>
+            {{ form.carbs(class="form-control" + (" is-invalid" if form.carbs.errors else ""), type="number", step="any") }}
+             {% if form.carbs.errors %}
+                <div class="invalid-feedback">{% for error in form.carbs.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+         <div class="col-md-3">
+            <label for="{{ form.fat.id }}" class="form-label">{{ form.fat.label }}</label>
+            {{ form.fat(class="form-control" + (" is-invalid" if form.fat.errors else ""), type="number", step="any") }}
+             {% if form.fat.errors %}
+                <div class="invalid-feedback">{% for error in form.fat.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+         <div class="col-md-3">
+            <label for="{{ form.fiber.id }}" class="form-label">{{ form.fiber.label }} (Optional)</label>
+            {{ form.fiber(class="form-control" + (" is-invalid" if form.fiber.errors else ""), type="number", step="any") }}
+             {% if form.fiber.errors %}
+                <div class="invalid-feedback">{% for error in form.fiber.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+        <div class="col-12">
+             <label for="{{ form.notes.id }}" class="form-label">{{ form.notes.label }} (Optional)</label>
+            {{ form.notes(class="form-control" + (" is-invalid" if form.notes.errors else ""), rows="3") }}
+             {% if form.notes.errors %}
+                <div class="invalid-feedback">{% for error in form.notes.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+    </div>
+
+    <hr class="my-4">
+
+    {{ form.submit(class="btn btn-success") }}
+    <a href="{{ url_for('database_view') }}" class="btn btn-secondary">Cancel</a>
+
+</form>
+{% endblock %}
