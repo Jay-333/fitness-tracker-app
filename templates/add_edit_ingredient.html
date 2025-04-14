@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h2>{{ title }}</h2>
+
+<form method="POST" action="{{ action_url }}">
+    {{ form.csrf_token }}
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <label for="{{ form.name.id }}" class="form-label">{{ form.name.label }} *</label>
+            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+            {% if form.name.errors %}
+                <div class="invalid-feedback d-block">{% for error in form.name.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+         <div class="col-md-6">
+            <label for="{{ form.category.id }}" class="form-label">{{ form.category.label }}</label>
+            {{ form.category(class="form-control" + (" is-invalid" if form.category.errors else ""), placeholder=form.category.description) }}
+             {% if form.category.errors %}
+                 <div class="invalid-feedback d-block">{% for error in form.category.errors %}{{ error }}{% endfor %}</div>
+             {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <label for="{{ form.typical_unit.id }}" class="form-label">{{ form.typical_unit.label }} *</label>
+            {{ form.typical_unit(class="form-control" + (" is-invalid" if form.typical_unit.errors else ""), placeholder=form.typical_unit.description) }}
+            {% if form.typical_unit.errors %}
+                <div class="invalid-feedback d-block">{% for error in form.typical_unit.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+        <div class="col-md-6">
+            <label for="{{ form.unit_quantity.id }}" class="form-label">{{ form.unit_quantity.label }} *</label>
+            {{ form.unit_quantity(class="form-control" + (" is-invalid" if form.unit_quantity.errors else ""), type="number", step="any") }}
+            <small class="form-text text-muted">Nutrients below apply to this quantity (e.g., 100 for 100g, 1 for 1 piece).</small>
+            {% if form.unit_quantity.errors %}
+                <div class="invalid-feedback d-block">{% for error in form.unit_quantity.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <hr>
+    <h5 class="mb-3">Estimated Nutrition (Optional)</h5>
+    <p class="text-muted"><small>Enter the nutritional values corresponding to the 'Quantity' and 'Unit' defined above.</small></p>
+
+
+    <div class="row g-3">
+         <div class="col-md-4 col-sm-6">
+             <label for="{{ form.calories.id }}" class="form-label">{{ form.calories.label }}</label>
+            {{ form.calories(class="form-control" + (" is-invalid" if form.calories.errors else ""), type="number", step="any") }}
+            {% if form.calories.errors %}<div class="invalid-feedback d-block">{% for error in form.calories.errors %}{{ error }}{% endfor %}</div>{% endif %}
+        </div>
+         <div class="col-md-4 col-sm-6">
+             <label for="{{ form.protein.id }}" class="form-label">{{ form.protein.label }}</label>
+            {{ form.protein(class="form-control" + (" is-invalid" if form.protein.errors else ""), type="number", step="any") }}
+             {% if form.protein.errors %}<div class="invalid-feedback d-block">{% for error in form.protein.errors %}{{ error }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="col-md-4 col-sm-6">
+             <label for="{{ form.carbs.id }}" class="form-label">{{ form.carbs.label }}</label>
+            {{ form.carbs(class="form-control" + (" is-invalid" if form.carbs.errors else ""), type="number", step="any") }}
+             {% if form.carbs.errors %}<div class="invalid-feedback d-block">{% for error in form.carbs.errors %}{{ error }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="col-md-4 col-sm-6">
+             <label for="{{ form.fat.id }}" class="form-label">{{ form.fat.label }}</label>
+            {{ form.fat(class="form-control" + (" is-invalid" if form.fat.errors else ""), type="number", step="any") }}
+             {% if form.fat.errors %}<div class="invalid-feedback d-block">{% for error in form.fat.errors %}{{ error }}{% endfor %}</div>{% endif %}
+        </div>
+         <div class="col-md-4 col-sm-6">
+             <label for="{{ form.fiber.id }}" class="form-label">{{ form.fiber.label }}</label>
+            {{ form.fiber(class="form-control" + (" is-invalid" if form.fiber.errors else ""), type="number", step="any") }}
+             {% if form.fiber.errors %}<div class="invalid-feedback d-block">{% for error in form.fiber.errors %}{{ error }}{% endfor %}</div>{% endif %}
+        </div>
+        <!-- Add fields for other nutrients if added to model/form -->
+    </div>
+
+    <hr>
+
+    <div class="mb-3">
+         <label for="{{ form.notes.id }}" class="form-label">{{ form.notes.label }}</label>
+        {{ form.notes(class="form-control" + (" is-invalid" if form.notes.errors else ""), rows="3") }}
+         {% if form.notes.errors %}<div class="invalid-feedback d-block">{% for error in form.notes.errors %}{{ error }}{% endfor %}</div>{% endif %}
+    </div>
+
+    <div class="mt-4">
+        {{ form.submit(class="btn btn-success") }}
+        <a href="{{ url_for('ingredients_list') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

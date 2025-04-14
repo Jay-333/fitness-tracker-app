@@ -1,4 +1,5 @@
 import os
+import requests
 from datetime import date, datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_sqlalchemy import SQLAlchemy
@@ -51,6 +52,37 @@ class Food(db.Model):
     def __repr__(self):
         return f'<Food {self.name}>'
 
+# --- Database Models ---
+
+class Ingredient(db.Model):
+    __tablename__ = 'ingredients' # Table for base ingredients
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False, index=True)
+    category = db.Column(db.String(100), nullable=True) # e.g., Vegetable, Fruit, Protein...
+    # Typical unit used when adding this ingredient to a recipe
+    typical_unit = db.Column(db.String(50), nullable=False, default='g') # e.g., g, ml, piece, cup
+
+    # --- Estimated Nutrition Fields ---
+    # Quantity of 'typical_unit' these nutrients refer to (e.g., 100 for 100g, 1 for 1 piece)
+    unit_quantity = db.Column(db.Float, nullable=False, default=100.0)
+    # Nutritional values PER 'unit_quantity' of 'typical_unit' - Allow NULL if unknown
+    calories = db.Column(db.Float, nullable=True)
+    protein = db.Column(db.Float, nullable=True)
+    carbs = db.Column(db.Float, nullable=True)
+    fat = db.Column(db.Float, nullable=True)
+    fiber = db.Column(db.Float, nullable=True)
+    # Add other fields like sugar, sodium if desired
+
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<Ingredient {self.name}>'
+
+# ... Keep other existing models (Food, MealLog) ...
+
+
 class MealLog(db.Model):
     __tablename__ = 'meal_logs'
     id = db.Column(db.Integer, primary_key=True)
@@ -75,6 +107,25 @@ class MealLog(db.Model):
         return f'<MealLog {self.quantity_consumed} {self.food.base_unit if self.food else ""} of {food_name} on {self.log_date}>'
 
 # --- Forms ---
+
+class IngredientForm(FlaskForm):
+    name = StringField('Ingredient Name', validators=[DataRequired(), Length(max=150)])
+    category = StringField('Category', validators=[Optional(), Length(max=100)], description="e.g., Vegetable, Protein, Grain")
+    typical_unit = StringField('Typical Unit for Recipes', default='g', validators=[DataRequired(), Length(max=50)], description="e.g., g, ml, piece, cup, slice")
+    # Defines the amount the below nutrients refer to
+    unit_quantity = FloatField('Nutrients Defined Per this Quantity of Unit', default=100.0, validators=[InputRequired(), NumberRange(min=0.001)])
+
+    # --- Nutrition Fields (Optional) ---
+    calories = FloatField('Est. Calories (per defined Qty)', validators=[Optional(), NumberRange(min=0)])
+    protein = FloatField('Est. Protein (g) (per defined Qty)', validators=[Optional(), NumberRange(min=0)])
+    carbs = FloatField('Est. Carbs (g) (per defined Qty)', validators=[Optional(), NumberRange(min=0)])
+    fat = FloatField('Est. Fat (g) (per defined Qty)', validators=[Optional(), NumberRange(min=0)])
+    fiber = FloatField('Est. Fiber (g) (per defined Qty)', validators=[Optional(), NumberRange(min=0)])
+    # Add others if included in model
+
+    notes = TextAreaField('Notes', validators=[Optional()])
+    submit = SubmitField('Save Ingredient')
+
 class FoodForm(FlaskForm):
     name = StringField('Food Name', validators=[DataRequired(), Length(max=150)])
     base_unit = StringField('Base Unit (e.g., g, ml, cup, slice)', validators=[DataRequired(), Length(max=50)])
@@ -151,7 +202,120 @@ def get_day_summary(log_date_obj):
 
 # --- Routes ---
 
-# Main Route - Daily Log / Index
+# Main Route - Daily Log / Index / Ingredients
+# ... (Keep existing routes like /log, /cache for now, we'll integrate/clean later) ...
+
+# --- Virtual Fridge / Ingredient Management Routes ---
+
+@app.route('/ingredients')
+def ingredients_list():
+    ingredients = Ingredient.query.order_by(Ingredient.category, Ingredient.name).all()
+    return render_template('ingredients_list.html', ingredients=ingredients) # New template needed
+
+@app.route('/ingredients/add', methods=['GET', 'POST'])
+def add_ingredient():
+    form = IngredientForm()
+    if form.validate_on_submit():
+        existing_ingredient = Ingredient.query.filter(db.func.lower(Ingredient.name) == form.name.data.strip().lower()).first()
+        if existing_ingredient:
+            flash('An ingredient with this name already exists.', 'danger')
+        else:
+            try:
+                new_ingredient = Ingredient(
+                    name=form.name.data.strip(),
+                    category=form.category.data.strip() if form.category.data else None,
+                    typical_unit=form.typical_unit.data.strip(),
+                    unit_quantity=form.unit_quantity.data,
+                    calories=form.calories.data if form.calories.data is not None else None,
+                    protein=form.protein.data if form.protein.data is not None else None,
+                    carbs=form.carbs.data if form.carbs.data is not None else None,
+                    fat=form.fat.data if form.fat.data is not None else None,
+                    fiber=form.fiber.data if form.fiber.data is not None else None,
+                    notes=form.notes.data,
+                    # created_at is handled by default
+                    updated_at=datetime.utcnow() # Set initial updated_at
+                )
+                db.session.add(new_ingredient)
+                db.session.commit()
+                flash(f'Ingredient "{new_ingredient.name}" added.', 'success')
+                return redirect(url_for('ingredients_list'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error adding ingredient: {e}', 'danger')
+                print(f"ERROR adding ingredient: {e}")
+    return render_template('add_edit_ingredient.html', # New template needed
+                           form=form,
+                           title='Add New Ingredient',
+                           action_url=url_for('add_ingredient'))
+
+@app.route('/ingredients/edit/<int:ingredient_id>', methods=['GET', 'POST'])
+def edit_ingredient(ingredient_id):
+    ingredient = Ingredient.query.get_or_404(ingredient_id)
+    form = IngredientForm(obj=ingredient) # Pre-populate form
+
+    if form.validate_on_submit():
+        new_name_lower = form.name.data.strip().lower()
+        existing_conflict = Ingredient.query.filter(
+            db.func.lower(Ingredient.name) == new_name_lower,
+            Ingredient.id != ingredient_id
+        ).first()
+        if existing_conflict:
+            flash('Another ingredient with this name already exists.', 'danger')
+        else:
+            try:
+                ingredient.name = form.name.data.strip()
+                ingredient.category = form.category.data.strip() if form.category.data else None
+                ingredient.typical_unit = form.typical_unit.data.strip()
+                ingredient.unit_quantity = form.unit_quantity.data
+                ingredient.calories = form.calories.data if form.calories.data is not None else None
+                ingredient.protein = form.protein.data if form.protein.data is not None else None
+                ingredient.carbs = form.carbs.data if form.carbs.data is not None else None
+                ingredient.fat = form.fat.data if form.fat.data is not None else None
+                ingredient.fiber = form.fiber.data if form.fiber.data is not None else None
+                ingredient.notes = form.notes.data
+                ingredient.updated_at = datetime.utcnow() # Update timestamp
+
+                db.session.commit()
+                flash(f'Ingredient "{ingredient.name}" updated.', 'success')
+                return redirect(url_for('ingredients_list'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error updating ingredient: {e}', 'danger')
+                print(f"ERROR updating ingredient {ingredient_id}: {e}")
+    return render_template('add_edit_ingredient.html', # Use new template
+                           form=form,
+                           title=f'Edit Ingredient: {ingredient.name}',
+                           action_url=url_for('edit_ingredient', ingredient_id=ingredient_id))
+
+@app.route('/ingredients/delete/<int:ingredient_id>', methods=['POST'])
+def delete_ingredient(ingredient_id):
+    ingredient = Ingredient.query.get_or_404(ingredient_id)
+    ingredient_name = ingredient.name
+    # Later check if used in recipes
+    try:
+        db.session.delete(ingredient)
+        db.session.commit()
+        flash(f'Ingredient "{ingredient_name}" deleted.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting ingredient: {e}', 'danger')
+        print(f"ERROR deleting ingredient {ingredient_id}: {e}")
+    return redirect(url_for('ingredients_list'))
+
+# ... (Rest of your routes: daily_log, cache, units, etc.) ...
+
+# Update db.create_all() call location if necessary (ensure it's run)
+with app.app_context():
+     print("Checking/creating database tables...")
+     try:
+         db.create_all() # This will now also create the 'ingredients' table
+         print("Database tables checked/created.")
+     except Exception as e:
+         print(f"ERROR during db.create_all(): {e}")
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
+
 @app.route('/', methods=['GET', 'POST'])
 def daily_log():
     log_date_str = request.args.get('date', date.today().isoformat())

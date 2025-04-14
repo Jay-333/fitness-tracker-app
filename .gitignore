@@ -3,6 +3,7 @@ venv/
 *.db
 *.sqlite
 *.sqlite3
+*.env
 
 # Python cache
 __pycache__/
