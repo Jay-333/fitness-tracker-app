@@ -4,8 +4,10 @@ from datetime import date, datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
-from wtforms import StringField, FloatField, SubmitField, SelectField, HiddenField, TextAreaField
+from wtforms import StringField, FloatField, SubmitField, SelectField, HiddenField, TextAreaField, SelectMultipleField
 from wtforms.validators import DataRequired, NumberRange, InputRequired, Optional, Length
+from wtforms.widgets import ListWidget, CheckboxInput
+import math
 
 # --- App Configuration ---
 app = Flask(__name__)
@@ -26,6 +28,56 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # --- Database Models ---
+# NEW: Model for Recipes/Meal Components
+class Recipe(db.Model):
+    __tablename__ = 'recipes'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False, index=True)
+    description = db.Column(db.Text, nullable=True)
+    instructions = db.Column(db.Text, nullable=True)
+    # Suitability for meal types (could store as comma-separated string or use a separate relationship later)
+    meal_type_suitability = db.Column(db.String(100), nullable=True, default='Any')
+
+    # Calculated nutrition per serving (we'll define 'serving' implicitly for now or add a field later)
+    # Store calculated values to avoid re-calculating every time
+    total_calories = db.Column(db.Float, nullable=True)
+    total_protein = db.Column(db.Float, nullable=True)
+    total_carbs = db.Column(db.Float, nullable=True)
+    total_fat = db.Column(db.Float, nullable=True)
+    total_fiber = db.Column(db.Float, nullable=True)
+    # Add others...
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship to the ingredients used in this recipe
+    # cascade='all, delete-orphan' means if a Recipe is deleted, its RecipeIngredient entries are also deleted.
+    ingredients = db.relationship('RecipeIngredient', backref='recipe', cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<Recipe {self.name}>'
+
+
+# NEW: Association table/model to link Recipes and Ingredients with quantities
+class RecipeIngredient(db.Model):
+    __tablename__ = 'recipe_ingredients'
+    id = db.Column(db.Integer, primary_key=True) # Simple primary key for the link itself
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipes.id'), nullable=False, index=True)
+    ingredient_id = db.Column(db.Integer, db.ForeignKey('ingredients.id'), nullable=False, index=True)
+
+    # Quantity of the ingredient used IN THE UNIT defined in the Ingredient model's 'typical_unit'
+    # e.g., 150 (if Ingredient.typical_unit is 'g'), 2 (if Ingredient.typical_unit is 'piece'), 0.5 (if 'cup')
+    quantity = db.Column(db.Float, nullable=False)
+
+    # Establish relationships for easy access (optional but convenient)
+    ingredient = db.relationship('Ingredient') # Allows easy access recipe_ingredient.ingredient.name etc.
+
+    def __repr__(self):
+        ing_name = self.ingredient.name if self.ingredient else 'Unknown Ingredient'
+        unit = self.ingredient.typical_unit if self.ingredient else 'unit'
+        return f'<RecipeIngredient {self.quantity} {unit} of {ing_name} for Recipe ID {self.recipe_id}>'
+
+
 class Food(db.Model):
     __tablename__ = 'foods'
     id = db.Column(db.Integer, primary_key=True)
@@ -52,7 +104,7 @@ class Food(db.Model):
     def __repr__(self):
         return f'<Food {self.name}>'
 
-# --- Database Models ---
+
 
 class Ingredient(db.Model):
     __tablename__ = 'ingredients' # Table for base ingredients
@@ -108,6 +160,36 @@ class MealLog(db.Model):
 
 # --- Forms ---
 
+# Form for basic Recipe Details
+class AddIngredientToRecipeForm(FlaskForm):
+    # Choices populated dynamically in the route
+    ingredient_id = SelectField('Ingredient', coerce=int, validators=[DataRequired()])
+    quantity = FloatField('Quantity', validators=[InputRequired(), NumberRange(min=0.001)])
+    submit = SubmitField('Add Ingredient')
+
+    # Optional: Override __init__ if complex dynamic choices needed,
+    # but often easier to set choices in the route handler.
+    # def __init__(self, *args, **kwargs):
+    #     super().__init__(*args, **kwargs)
+    #     self.ingredient_id.choices = [] # Start empty
+
+class RecipeForm(FlaskForm):
+    name = StringField('Recipe Name', validators=[DataRequired(), Length(max=200)])
+    description = TextAreaField('Description (Optional)')
+    instructions = TextAreaField('Instructions (Optional)')
+    # Example using SelectMultipleField - requires choices to be set in the route
+    meal_type_suitability = SelectMultipleField(
+        'Suitable for Meals (Optional)',
+        choices=[('Breakfast','Breakfast'), ('Lunch','Lunch'), ('Dinner','Dinner'), ('Snack','Snack'), ('Any','Any')],
+        option_widget=CheckboxInput(),
+        widget=ListWidget(prefix_label=False),
+        validators=[Optional()],
+        description="Select one or more applicable meal types."
+    )
+    submit = SubmitField('Save Recipe Details')
+
+# We won't create a separate 'Add Ingredient to Recipe' form *yet*.
+
 class IngredientForm(FlaskForm):
     name = StringField('Ingredient Name', validators=[DataRequired(), Length(max=150)])
     category = StringField('Category', validators=[Optional(), Length(max=100)], description="e.g., Vegetable, Protein, Grain")
@@ -153,6 +235,49 @@ class LogEntryForm(FlaskForm):
 
 
 # --- Helper Functions ---
+def calculate_recipe_nutrition(recipe_id):
+    """Calculates and returns total estimated nutrition for a given recipe ID."""
+    totals = {'calories': 0.0, 'protein': 0.0, 'carbs': 0.0, 'fat': 0.0, 'fiber': 0.0} # Add others...
+    recipe = Recipe.query.get(recipe_id)
+    if not recipe:
+        return None # Or raise error
+
+    # Use lazy='dynamic' on ingredients relationship to query it here
+    recipe_ingredients = recipe.ingredients # Eager load ingredient data
+
+    for ri in recipe_ingredients:
+        ingredient = ri.ingredient
+        quantity_used = ri.quantity # This is in the ingredient's 'typical_unit'
+
+        if not ingredient or ingredient.unit_quantity is None or ingredient.unit_quantity == 0:
+            print(f"WARN: Skipping ingredient {ingredient.name if ingredient else 'ID unknown'} in recipe {recipe.id} due to missing base data.")
+            continue # Skip if ingredient or its base data is missing
+
+        # --- Calculate multiplier ---
+        # Multiplier = (Quantity Used in Recipe / Quantity Nutrition is Defined For)
+        try:
+             multiplier = float(quantity_used) / float(ingredient.unit_quantity)
+        except (ValueError, TypeError, ZeroDivisionError):
+            print(f"WARN: Could not calculate multiplier for {ingredient.name} in recipe {recipe.id}. Skipping.")
+            continue
+
+        # --- Add ingredient's contribution to totals (handle None values) ---
+        def safe_get_nutrient(val): return float(val) if val is not None else 0.0
+
+        totals['calories'] += (safe_get_nutrient(ingredient.calories) * multiplier)
+        totals['protein']  += (safe_get_nutrient(ingredient.protein) * multiplier)
+        totals['carbs']    += (safe_get_nutrient(ingredient.carbs) * multiplier)
+        totals['fat']      += (safe_get_nutrient(ingredient.fat) * multiplier)
+        totals['fiber']    += (safe_get_nutrient(ingredient.fiber) * multiplier)
+        # Add others...
+
+    # Ensure final totals are finite numbers
+    for key in totals:
+        if not isinstance(totals[key], (int, float)) or not math.isfinite(totals[key]):
+            totals[key] = 0.0 # Default to 0 if calculation failed somewhere
+
+    return totals
+
 def calculate_nutrients(food, quantity_consumed):
     """Calculates nutrients based on the logged quantity."""
     results = {
@@ -206,6 +331,227 @@ def get_day_summary(log_date_obj):
 # ... (Keep existing routes like /log, /cache for now, we'll integrate/clean later) ...
 
 # --- Virtual Fridge / Ingredient Management Routes ---
+@app.route('/recipes')
+def recipes_list():
+    """Display a list of all created recipes."""
+    recipes = Recipe.query.order_by(Recipe.name).all()
+    return render_template('recipes_list.html', recipes=recipes) # New template
+
+@app.route('/recipes/add', methods=['GET', 'POST'])
+def add_recipe():
+    """Add a new recipe (details only)."""
+    form = RecipeForm()
+    # You could pre-select 'Any' or leave blank depending on preference
+    # if not form.meal_type_suitability.data: form.meal_type_suitability.data = ['Any']
+
+    if form.validate_on_submit():
+        try:
+            new_recipe = Recipe(
+                name=form.name.data.strip(),
+                description=form.description.data,
+                instructions=form.instructions.data,
+                # Join selected meal types into a comma-separated string
+                meal_type_suitability=",".join(form.meal_type_suitability.data) if form.meal_type_suitability.data else 'Any'
+                # Nutrition totals will be calculated when ingredients are added/edited
+            )
+            db.session.add(new_recipe)
+            db.session.commit()
+            flash(f'Recipe "{new_recipe.name}" created. Now add ingredients.', 'success')
+            # Redirect to the detail view to add ingredients
+            return redirect(url_for('recipe_detail', recipe_id=new_recipe.id))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating recipe: {e}', 'danger')
+            print(f"ERROR creating recipe: {e}")
+    return render_template('add_edit_recipe.html', form=form, title="Create New Recipe", action_url=url_for('add_recipe')) # New template
+
+@app.route('/recipes/<int:recipe_id>', methods=['GET'])
+def recipe_detail(recipe_id):
+    recipe = Recipe.query.options(
+        db.selectinload(Recipe.ingredients).joinedload(RecipeIngredient.ingredient)
+    ).get_or_404(recipe_id)
+
+    # --- Instantiate the DEDICATED form class ---
+    add_ingredient_form = AddIngredientToRecipeForm() # Use the new form
+
+    # Populate ingredient choices (logic remains the same)
+    current_ingredient_ids = {ri.ingredient_id for ri in recipe.ingredients}
+    available_ingredients = Ingredient.query.filter(Ingredient.id.notin_(current_ingredient_ids)).order_by(Ingredient.name).all()
+    # Set choices on the 'ingredient_id' field of the *instance*
+    add_ingredient_form.ingredient_id.choices = [(ing.id, f"{ing.name} ({ing.typical_unit})") for ing in available_ingredients]
+
+    return render_template('recipe_detail.html',
+                           recipe=recipe,
+                           add_ingredient_form=add_ingredient_form) # Pass the correctly bound form
+
+@app.route('/recipes/<int:recipe_id>/edit', methods=['GET', 'POST'])
+def edit_recipe(recipe_id):
+    """Edit basic recipe details."""
+    recipe = Recipe.query.get_or_404(recipe_id)
+    # Pre-populate form, handling comma-separated string for meal types
+    form = RecipeForm(obj=recipe)
+    if request.method == 'GET': # Need to set SelectMultipleField data on GET
+        form.meal_type_suitability.data = recipe.meal_type_suitability.split(',') if recipe.meal_type_suitability else []
+
+    if form.validate_on_submit():
+        try:
+            recipe.name = form.name.data.strip()
+            recipe.description = form.description.data
+            recipe.instructions = form.instructions.data
+            recipe.meal_type_suitability = ",".join(form.meal_type_suitability.data) if form.meal_type_suitability.data else 'Any'
+            recipe.updated_at = datetime.utcnow()
+            # Nutrition will be recalculated if ingredients change, or could force recalc here
+            db.session.commit()
+            flash(f'Recipe "{recipe.name}" details updated.', 'success')
+            return redirect(url_for('recipe_detail', recipe_id=recipe.id))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating recipe details: {e}', 'danger')
+            print(f"ERROR updating recipe {recipe_id}: {e}")
+    # GET or failed POST
+    return render_template('add_edit_recipe.html', # Re-use add_edit template
+                           form=form,
+                           title=f"Edit Recipe: {recipe.name}",
+                           action_url=url_for('edit_recipe', recipe_id=recipe_id))
+
+
+# Route to handle adding an ingredient to a recipe (called from recipe_detail)
+@app.route('/recipes/<int:recipe_id>/add_ingredient', methods=['POST'])
+def add_ingredient_to_recipe(recipe_id):
+    recipe = Recipe.query.get_or_404(recipe_id)
+
+    # --- Instantiate the DEDICATED form class for POST validation ---
+    form = AddIngredientToRecipeForm(request.form) # Pass request data
+
+    # --- Repopulate choices BEFORE validation ---
+    current_ingredient_ids = {ri.ingredient_id for ri in recipe.ingredients}
+    available_ingredients = Ingredient.query.filter(Ingredient.id.notin_(current_ingredient_ids)).order_by(Ingredient.name).all()
+    form.ingredient_id.choices = [(ing.id, f"{ing.name} ({ing.typical_unit})") for ing in available_ingredients]
+    # Ensure the submitted value is actually in the choices for validation to pass if needed,
+    # though coerce=int might handle it. If validation fails on ingredient_id, double check this.
+
+    if form.validate_on_submit(): # Validate the dedicated form instance
+        ingredient_id = form.ingredient_id.data
+        quantity = form.quantity.data
+        ingredient = Ingredient.query.get(ingredient_id)
+
+        # --- Rest of the logic remains the same ---
+        if not ingredient:
+             flash("Selected ingredient not found.", 'danger')
+        else:
+            try:
+                # Check if already exists...
+                existing_ri = RecipeIngredient.query.filter_by(recipe_id=recipe_id, ingredient_id=ingredient_id).first()
+                if existing_ri:
+                    flash(f"{ingredient.name} is already in this recipe.", 'warning')
+                else:
+                    # 1. Create the new RecipeIngredient object
+                    new_ri = RecipeIngredient(
+                        recipe_id=recipe_id,
+                        ingredient_id=ingredient_id,
+                        quantity=quantity
+                    )
+                    # 2. ADD the new object to the session - Marks it for insertion
+                    db.session.add(new_ri)
+
+                    # 3. FLUSH the session - Sends pending changes (the INSERT for new_ri)
+                    # to the database BUT doesn't permanently commit the transaction yet.
+                    # This is useful if subsequent operations (like calculation) might fail,
+                    # allowing a full rollback. It also ensures new_ri gets its ID if needed.
+                    db.session.flush()
+
+                    # 4. EXPIRE the related Recipe object - Tells SQLAlchemy the current
+                    # 'recipe' Python object might be stale regarding its 'ingredients' list.
+                    db.session.expire(recipe)
+
+                    # 5. Recalculate nutrition - Accessing recipe.ingredients inside this
+                    # function will now trigger SQLAlchemy to reload the ingredients list
+                    # from the DB (including the newly flushed 'new_ri').
+                    updated_totals = calculate_recipe_nutrition(recipe_id)
+                    if updated_totals:
+                        recipe.total_calories = updated_totals['calories']
+                        recipe.total_protein = updated_totals['protein']
+                        # ... set other totals ...
+                        recipe.updated_at = datetime.utcnow()
+                    else:
+                         flash("Could not recalculate recipe totals.", "warning")
+
+                    # 6. COMMIT the transaction - Makes all changes permanent in the DB
+                    # (the new RecipeIngredient and the updated Recipe totals).
+                    db.session.commit()
+                    flash(f"Added {quantity} {ingredient.typical_unit} of {ingredient.name} to recipe.", 'success')
+
+            except Exception as e:
+                # 7. ROLLBACK if any error occurred during steps 1-6
+                db.session.rollback()
+                flash(f"Error adding ingredient to recipe: {e}", 'danger')
+                print(f"ERROR adding ingredient to recipe {recipe_id}: {e}")
+    else:
+         # Collect validation errors for flashing (optional)
+         error_messages = []
+         for field, errors in form.errors.items():
+             for error in errors:
+                 error_messages.append(f"{getattr(form, field).label.text}: {error}")
+         flash("Error adding ingredient: " + "; ".join(error_messages), "danger")
+
+
+    return redirect(url_for('recipe_detail', recipe_id=recipe_id))
+
+# Route to remove an ingredient from a recipe
+@app.route('/recipes/remove_ingredient/<int:recipe_ingredient_id>', methods=['POST'])
+def remove_ingredient_from_recipe(recipe_ingredient_id):
+    ri = RecipeIngredient.query.get_or_404(recipe_ingredient_id)
+    recipe_id = ri.recipe_id # Get recipe ID before deleting
+    ingredient_name = ri.ingredient.name if ri.ingredient else 'Ingredient'
+    try:
+        db.session.delete(ri)
+
+        db.session.flush()
+
+        # --- Recalculate and Update Recipe Totals ---
+        recipe = Recipe.query.get(recipe_id)
+        if recipe:
+            db.session.expire(recipe)
+            updated_totals = calculate_recipe_nutrition(recipe_id)
+            if updated_totals:
+                recipe.total_calories = updated_totals['calories']
+                recipe.total_protein = updated_totals['protein']
+                recipe.total_carbs = updated_totals['carbs']
+                recipe.total_fat = updated_totals['fat']
+                recipe.total_fiber = updated_totals['fiber']
+                # Update others...
+                recipe.updated_at = datetime.utcnow()
+            else:
+                 flash("Could not recalculate recipe totals.", "warning")
+                 # Set totals to None/0 if desired when empty?
+                 # recipe.total_calories = None ... etc ...
+        else:
+            db.session.commit()
+        flash(f"Removed {ingredient_name} from recipe.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error removing ingredient: {e}", "danger")
+        print(f"ERROR removing ingredient link {recipe_ingredient_id}: {e}")
+
+    return redirect(url_for('recipe_detail', recipe_id=recipe_id))
+
+
+@app.route('/recipes/delete/<int:recipe_id>', methods=['POST'])
+def delete_recipe(recipe_id):
+    """Delete a recipe and its ingredient links."""
+    recipe = Recipe.query.get_or_404(recipe_id)
+    recipe_name = recipe.name
+    try:
+        # Deleting recipe automatically deletes RecipeIngredient links due to cascade
+        db.session.delete(recipe)
+        db.session.commit()
+        flash(f'Recipe "{recipe_name}" deleted.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting recipe: {e}', 'danger')
+        print(f"ERROR deleting recipe {recipe_id}: {e}")
+    return redirect(url_for('recipes_list'))
+
 
 @app.route('/ingredients')
 def ingredients_list():

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Recipe: {{ recipe.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>{{ recipe.name }}</h2>
+    <div>
+        <a href="{{ url_for('edit_recipe', recipe_id=recipe.id) }}" class="btn btn-warning btn-sm">Edit Details</a>
+        <a href="{{ url_for('recipes_list') }}" class="btn btn-secondary btn-sm">&larr; Back to Recipes</a>
+    </div>
+</div>
+
+<p><strong>Suitable for:</strong> {{ recipe.meal_type_suitability | replace(',', ', ') }}</p>
+{% if recipe.description %}
+<p><strong>Description:</strong> {{ recipe.description }}</p>
+{% endif %}
+{% if recipe.instructions %}
+<p><strong>Instructions:</strong></p>
+<div style="white-space: pre-wrap; background-color: #f8f9fa; padding: 10px; border-radius: 5px;">{{ recipe.instructions }}</div>
+{% endif %}
+
+<hr>
+
+<!-- Calculated Nutrition -->
+<h4>Estimated Nutrition per Serving</h4>
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row text-center">
+             <div class="col">
+                <span class="nutrient-label d-block">Calories</span>
+                <span class="nutrient-value">{{ recipe.total_calories | round(0) if recipe.total_calories is not none else '-' }} kcal</span>
+            </div>
+            <div class="col">
+                <span class="nutrient-label d-block">Protein</span>
+                <span class="nutrient-value">{{ recipe.total_protein | round(1) if recipe.total_protein is not none else '-' }} g</span>
+            </div>
+             <div class="col">
+                <span class="nutrient-label d-block">Carbs</span>
+                <span class="nutrient-value">{{ recipe.total_carbs | round(1) if recipe.total_carbs is not none else '-' }} g</span>
+            </div>
+             <div class="col">
+                <span class="nutrient-label d-block">Fat</span>
+                <span class="nutrient-value">{{ recipe.total_fat | round(1) if recipe.total_fat is not none else '-' }} g</span>
+            </div>
+             <div class="col">
+                <span class="nutrient-label d-block">Fiber</span>
+                <span class="nutrient-value">{{ recipe.total_fiber | round(1) if recipe.total_fiber is not none else '-' }} g</span>
+            </div>
+            <!-- Add others if tracked -->
+        </div>
+    </div>
+</div>
+
+<!-- Ingredients Section -->
+<h4>Ingredients</h4>
+<div class="row">
+    <div class="col-md-7">
+        {% if recipe.ingredients %}
+        <ul class="list-group mb-3">
+            {% for ri in recipe.ingredients %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>
+                    {{ ri.quantity }} {{ ri.ingredient.typical_unit }} - {{ ri.ingredient.name }}
+                     <small class="text-muted">({{ ri.ingredient.category | default('N/A') }})</small>
+                </span>
+                <form method="POST" action="{{ url_for('remove_ingredient_from_recipe', recipe_ingredient_id=ri.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove {{ ri.ingredient.name }} from recipe?');">&times;</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">No ingredients added to this recipe yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Add Ingredient Form -->
+    <div class="col-md-5">
+        <h5>Add Ingredient</h5>
+         <form method="POST" action="{{ url_for('add_ingredient_to_recipe', recipe_id=recipe.id) }}">
+             {{ add_ingredient_form.csrf_token() if add_ingredient_form.csrf_token }} {# Add CSRF token if WTF_CSRF_ENABLED=True #}
+             <div class="mb-2">
+                 <label for="{{ add_ingredient_form.ingredient_id.id }}" class="form-label">{{ add_ingredient_form.ingredient_id.label }}</label>
+                 {{ add_ingredient_form.ingredient_id(class="form-select form-select-sm" + (" is-invalid" if add_ingredient_form.ingredient_id.errors else "")) }}
+                  {% if add_ingredient_form.ingredient_id.errors %}
+                    <div class="invalid-feedback d-block">{% for error in add_ingredient_form.ingredient_id.errors %}{{ error }}{% endfor %}</div>
+                 {% endif %}
+                 <small><a href="{{ url_for('ingredients_list') }}" target="_blank">Manage Ingredients</a></small> {# Link to ingredients page #}
+             </div>
+             <div class="mb-2">
+                  <label for="{{ add_ingredient_form.quantity.id }}" class="form-label">{{ add_ingredient_form.quantity.label }}</label>
+                  <div class="input-group input-group-sm">
+                    {{ add_ingredient_form.quantity(class="form-control" + (" is-invalid" if add_ingredient_form.quantity.errors else ""), type="number", step="any") }}
+                    <span class="input-group-text">(in base unit shown in dropdown)</span>
+                 </div>
+                  {% if add_ingredient_form.quantity.errors %}
+                      <div class="invalid-feedback d-block">{% for error in add_ingredient_form.quantity.errors %}{{ error }}{% endfor %}</div>
+                 {% endif %}
+             </div>
+             {{ add_ingredient_form.submit(class="btn btn-success btn-sm") }}
+         </form>
+    </div>
+</div>
+
+<hr>
+<form method="POST" action="{{ url_for('delete_recipe', recipe_id=recipe.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to DELETE this entire recipe? This cannot be undone.');">
+    <button type="submit" class="btn btn-danger">Delete Recipe</button>
+</form>
+
+
+{% endblock %}

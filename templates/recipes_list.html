@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}My Recipes{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>My Recipes</h2>
+    <a href="{{ url_for('add_recipe') }}" class="btn btn-primary">Create New Recipe</a>
+</div>
+<p class="text-muted">Define your custom meals and recipes using your ingredients.</p>
+
+{% if recipes %}
+<div class="list-group">
+    {% for recipe in recipes %}
+    <a href="{{ url_for('recipe_detail', recipe_id=recipe.id) }}" class="list-group-item list-group-item-action flex-column align-items-start">
+        <div class="d-flex w-100 justify-content-between">
+            <h5 class="mb-1">{{ recipe.name }}</h5>
+            <small class="text-muted">Updated: {{ recipe.updated_at.strftime('%Y-%m-%d') }}</small>
+        </div>
+        <p class="mb-1">{{ (recipe.description or '') | truncate(150) }}</p>
+        <small class="text-muted">Suitable for: {{ recipe.meal_type_suitability | replace(',', ', ') }}</small>
+         <!-- Optional: Display summary nutrition -->
+         <div class="d-flex justify-content-around mt-2 border-top pt-2">
+            <small>Cal: {{ recipe.total_calories|round(0) if recipe.total_calories is not none else '-' }}</small>
+            <small>P: {{ recipe.total_protein|round(1) if recipe.total_protein is not none else '-' }}g</small>
+            <small>C: {{ recipe.total_carbs|round(1) if recipe.total_carbs is not none else '-' }}g</small>
+            <small>F: {{ recipe.total_fat|round(1) if recipe.total_fat is not none else '-' }}g</small>
+            <small>Fib: {{ recipe.total_fiber|round(1) if recipe.total_fiber is not none else '-' }}g</small>
+         </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">No recipes created yet. <a href="{{ url_for('add_recipe') }}">Create one now!</a></div>
+{% endif %}
+{% endblock %}

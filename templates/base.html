@@ -32,6 +32,9 @@
             <li class="nav-item">
               <a class="nav-link {% if request.endpoint == 'database_view' %}active{% endif %}" href="{{ url_for('database_view') }}">Food Database</a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link {% if request.endpoint == 'recipes_list' or request.endpoint == 'recipe_detail' %}active{% endif %}" href="{{ url_for('recipes_list') }}">My Recipes</a>
+            </li>
           </ul>
         </div>
       </div>

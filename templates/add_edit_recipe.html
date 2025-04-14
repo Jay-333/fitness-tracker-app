@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h2>{{ title }}</h2>
+<p class="text-muted">Define the basic details of your recipe here. You can add ingredients after saving.</p>
+
+<form method="POST" action="{{ action_url }}">
+    {{ form.csrf_token }}
+
+    <div class="mb-3">
+        <label for="{{ form.name.id }}" class="form-label">{{ form.name.label }} *</label>
+        {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+        {% if form.name.errors %}<div class="invalid-feedback d-block">{% for error in form.name.errors %}{{ error }}{% endfor %}</div>{% endif %}
+    </div>
+
+     <div class="mb-3">
+        <label for="{{ form.description.id }}" class="form-label">{{ form.description.label }}</label>
+        {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), rows="3") }}
+         {% if form.description.errors %}<div class="invalid-feedback d-block">{% for error in form.description.errors %}{{ error }}{% endfor %}</div>{% endif %}
+    </div>
+
+     <div class="mb-3">
+        <label for="{{ form.instructions.id }}" class="form-label">{{ form.instructions.label }}</label>
+        {{ form.instructions(class="form-control" + (" is-invalid" if form.instructions.errors else ""), rows="5") }}
+         {% if form.instructions.errors %}<div class="invalid-feedback d-block">{% for error in form.instructions.errors %}{{ error }}{% endfor %}</div>{% endif %}
+    </div>
+
+    <div class="mb-3">
+         <label for="{{ form.meal_type_suitability.id }}" class="form-label">{{ form.meal_type_suitability.label }}</label>
+         <!-- Render checkboxes for multiple select -->
+         <div class="{% if form.meal_type_suitability.errors %}is-invalid{% endif %}">
+             {% for subfield in form.meal_type_suitability %}
+                 <div class="form-check form-check-inline">
+                     {{ subfield(class="form-check-input") }}
+                     {{ subfield.label(class="form-check-label") }}
+                 </div>
+             {% endfor %}
+         </div>
+         <small class="form-text text-muted">{{ form.meal_type_suitability.description }}</small>
+         {% if form.meal_type_suitability.errors %}
+            <div class="invalid-feedback d-block">{% for error in form.meal_type_suitability.errors %}{{ error }}{% endfor %}</div>
+         {% endif %}
+    </div>
+
+    <hr class="my-4">
+
+    {{ form.submit(class="btn btn-success") }}
+    <a href="{{ url_for('recipes_list') }}" class="btn btn-secondary">Cancel</a>
+
+</form>
+{% endblock %}
