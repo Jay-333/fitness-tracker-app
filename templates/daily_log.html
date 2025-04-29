@@ -59,6 +59,9 @@
                 <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#add{{ meal | replace(' ', '') }}Form" aria-expanded="false" aria-controls="add{{ meal | replace(' ', '') }}Form">
                     + Add Food
                 </button>
+                <button class="btn btn-sm btn-info ms-2" type="button" data-bs-toggle="collapse" data-bs-target="#addRecipe{{ meal | replace(' ', '') }}Form" aria-expanded="false" aria-controls="addRecipe{{ meal | replace(' ', '') }}Form">
+                    + Add Recipe
+                </button>
             </div>
 
             <!-- Add Food Form (Collapsible) -->
@@ -94,6 +97,36 @@
                 </div>
             </div>
 
+            <!-- Add Recipe Form (Collapsible) -->
+            <div class="collapse" id="addRecipe{{ meal | replace(' ', '') }}Form">
+                <div class="card-body bg-light border-top">
+                    <form method="POST" action="{{ url_for('log_recipe_entry') }}"> {# Note new action URL #}
+                        {{ log_recipe_form.csrf_token }}
+                        {{ log_recipe_form.meal_type(value=meal) }} {# Set hidden meal type #}
+                        {{ log_recipe_form.log_date(value=current_date_str) }} {# Set hidden date #}
+
+                        <div class="mb-3">
+                        <label for="{{ log_recipe_form.recipe_id.id }}" class="form-label">{{ log_recipe_form.recipe_id.label }}</label>
+                        {# Use unique ID if needed, but name should suffice #}
+                        {{ log_recipe_form.recipe_id(class="form-select form-select-sm") }}
+                        {% if log_recipe_form.recipe_id.errors %}
+                            <div class="invalid-feedback d-block">{% for error in log_recipe_form.recipe_id.errors %}{{ error }}{% endfor %}</div>
+                        {% endif %}
+                        <small><a href="{{ url_for('recipes_list') }}" target="_blank">Manage Recipes</a></small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="{{ log_recipe_form.quantity_consumed.id }}" class="form-label">{{ log_recipe_form.quantity_consumed.label }}</label>
+                            {{ log_recipe_form.quantity_consumed(class="form-control form-control-sm", placeholder="e.g., 1 or 0.5") }}
+                            <small class="form-text text-muted">{{ log_recipe_form.quantity_consumed.description }}</small>
+                            {% if log_recipe_form.quantity_consumed.errors %}
+                            <div class="invalid-feedback d-block">{% for error in log_recipe_form.quantity_consumed.errors %}{{ error }}{% endfor %}</div>
+                            {% endif %}
+                        </div>
+                        {{ log_recipe_form.submit(class="btn btn-info btn-sm") }}
+                    </form>
+                </div>
+            </div>
+
 
             <!-- Logged Items Table -->
             <div class="card-body">
@@ -117,9 +150,18 @@
                     <tbody>
                         {% for log in logs_by_meal[meal] %}
                         <tr>
-                            <td>{{ log.food.name }}</td>
-                            <td>{{ log.quantity_consumed | round(1) }}</td>
-                            <td>{{ log.food.base_unit }}</td>
+                            {% if log.food_id %} {# Display Food Log Entry #}
+                                <td>{{ log.food.name }} <span class="badge bg-secondary">Food</span></td>
+                                <td>{{ log.quantity_consumed | round(1) }}</td>
+                                <td>{{ log.food.base_unit }}</td>
+                            {% elif log.recipe_id %} {# Display Recipe Log Entry #}
+                                <td>{{ log.recipe.name }} <span class="badge bg-info">Recipe</span></td>
+                                <td>{{ log.quantity_consumed | round(2) }}</td>
+                                <td>{{ 'serving' if log.quantity_consumed == 1 else 'servings' }}</td>
+                            {% else %} {# Should not happen due to constraint #}
+                                <td colspan="3">Invalid Log Entry</td>
+                            {% endif %}
+                            {# Nutrient columns are the same for both #}
                             <td>{{ log.calculated_calories | round(0) }}</td>
                             <td>{{ log.calculated_protein | round(1) }}</td>
                             <td>{{ log.calculated_carbs | round(1) }}</td>
