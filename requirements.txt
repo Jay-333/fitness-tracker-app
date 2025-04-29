@@ -4,3 +4,4 @@ Flask-WTF
 psycopg2-binary # For PostgreSQL on deployment
 gunicorn        # For running the app on deployment
 requests	# For API requests
+Flask-Migrate
