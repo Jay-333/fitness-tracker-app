@@ -23,6 +23,8 @@
             <th>Carb</th>
             <th>Fat</th>
             <th>Fib</th>
+            <th>Sugar</th>
+            <th>Calc</th>
             <th>Notes</th>
             <th>Actions</th>
         </tr>
@@ -39,6 +41,8 @@
             <td>{{ ing.carbs | round(1) if ing.carbs is not none else '-' }}</td>
             <td>{{ ing.fat | round(1) if ing.fat is not none else '-' }}</td>
             <td>{{ ing.fiber | round(1) if ing.fiber is not none else '-' }}</td>
+            <td>{{ ing.sugar | round(1) if ing.sugar is not none else '-' }}</td>
+            <td>{{ ing.calcium | round(1) if ing.calcium is not none else '-' }}</td>
             <td class="text-truncate" style="max-width: 150px;">{{ ing.notes | default('', true) }}</td>
             <td>
                 <a href="{{ url_for('edit_ingredient', ingredient_id=ing.id) }}" class="btn btn-sm btn-warning mb-1 d-inline-block">Edit</a>

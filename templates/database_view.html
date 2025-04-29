@@ -21,6 +21,8 @@
             <th>Carbs (g)</th>
             <th>Fat (g)</th>
             <th>Fiber (g)</th>
+            <th>Sugar (g)</th>
+            <th>Calcium (mg) </th>
             <th>Notes</th>
             <th>Actions</th>
         </tr>
@@ -36,6 +38,8 @@
             <td>{{ food.carbs | round(1) }}</td>
             <td>{{ food.fat | round(1) }}</td>
             <td>{{ food.fiber | round(1) }}</td>
+            <td>{{ food.sugar | round(1) }}</td>
+            <td>{{ food.calcium | round(1) }}</td>
             <td>{{ food.notes[:50] + '...' if food.notes and food.notes|length > 50 else food.notes }}</td>
             <td>
                 <a href="{{ url_for('edit_food', food_id=food.id) }}" class="btn btn-sm btn-warning mb-1 d-inline-block">Edit</a>

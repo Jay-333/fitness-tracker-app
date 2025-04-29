@@ -26,6 +26,8 @@
             <small>C: {{ recipe.total_carbs|round(1) if recipe.total_carbs is not none else '-' }}g</small>
             <small>F: {{ recipe.total_fat|round(1) if recipe.total_fat is not none else '-' }}g</small>
             <small>Fib: {{ recipe.total_fiber|round(1) if recipe.total_fiber is not none else '-' }}g</small>
+            <small>Sugar: {{ recipe.total_sugar|round(1) if recipe.total_sugar is not none else '-' }}g</small>
+            <small>Calc: {{ recipe.total_calcium|round(1) if recipe.total_calcium is not none else '-' }}mg</small>
          </div>
     </a>
     {% endfor %}

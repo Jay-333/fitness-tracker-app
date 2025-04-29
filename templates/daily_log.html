@@ -35,6 +35,14 @@
                 <span class="nutrient-label d-block">Fiber</span>
                 <span class="nutrient-value">{{ daily_summary.fiber | round(1) }} g</span>
             </div>
+            <div class="col">
+                <span class="nutrient-label d-block">Sugar</span>
+                <span class="nutrient-value">{{ daily_summary.sugar | round(1) }} g</span>
+            </div>
+            <div class="col">
+                <span class="nutrient-label d-block">Calcium</span>
+                <span class="nutrient-value">{{ daily_summary.calcium | round(1) }} g</span>
+            </div>
             <!-- Add other summary nutrients here -->
         </div>
     </div>
@@ -98,9 +106,11 @@
                             <th>Unit</th>
                             <th>Cal</th>
                             <th>P</th>
-                            <th>C</th>
-                            <th>F</th>
+                            <th>Carbs</th>
+                            <th>Fats</th>
                             <th>Fib</th>
+                            <th>Sug</th>
+                            <th>Calc</th>
                             <th></th> {# Action column #}
                         </tr>
                     </thead>
@@ -115,6 +125,8 @@
                             <td>{{ log.calculated_carbs | round(1) }}</td>
                             <td>{{ log.calculated_fat | round(1) }}</td>
                             <td>{{ log.calculated_fiber | round(1) }}</td>
+                            <td>{{ log.calculated_sugar | round(1) }}</td>
+                            <td>{{ log.calculated_calcium | round(1) }}</td>
                             <td>
                                 <form method="POST" action="{{ url_for('delete_log_entry', log_id=log.id) }}" style="display: inline;">
                                     <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Are you sure you want to delete this entry?');">×</button>

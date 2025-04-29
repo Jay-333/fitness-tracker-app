@@ -47,6 +47,14 @@
                 <span class="nutrient-label d-block">Fiber</span>
                 <span class="nutrient-value">{{ recipe.total_fiber | round(1) if recipe.total_fiber is not none else '-' }} g</span>
             </div>
+            <div class="col">
+                <span class="nutrient-label d-block">Sugar</span>
+                <span class="nutrient-value">{{ recipe.total_sugar | round(1) if recipe.total_sugar is not none else '-' }} g</span>
+            </div>
+            <div class="col">
+                <span class="nutrient-label d-block">Calcium</span>
+                <span class="nutrient-value">{{ recipe.total_calcium | round(1) if recipe.total_calcium is not none else '-' }} g</span>
+            </div>
             <!-- Add others if tracked -->
         </div>
     </div>

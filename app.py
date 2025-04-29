@@ -8,6 +8,7 @@ from wtforms import StringField, FloatField, SubmitField, SelectField, HiddenFie
 from wtforms.validators import DataRequired, NumberRange, InputRequired, Optional, Length
 from wtforms.widgets import ListWidget, CheckboxInput
 import math
+from flask_migrate import Migrate
 
 # --- App Configuration ---
 app = Flask(__name__)
@@ -26,6 +27,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or 'sqlite:///' + os.path.j
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 # --- Database Models ---
 # NEW: Model for Recipes/Meal Components
@@ -45,6 +47,8 @@ class Recipe(db.Model):
     total_carbs = db.Column(db.Float, nullable=True)
     total_fat = db.Column(db.Float, nullable=True)
     total_fiber = db.Column(db.Float, nullable=True)
+    total_sugar = db.Column(db.Float, nullable=True)
+    total_calcium = db.Column(db.Float, nullable=True)
     # Add others...
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -70,7 +74,7 @@ class RecipeIngredient(db.Model):
     quantity = db.Column(db.Float, nullable=False)
 
     # Establish relationships for easy access (optional but convenient)
-    ingredient = db.relationship('Ingredient') # Allows easy access recipe_ingredient.ingredient.name etc.
+    ingredient = db.relationship('Ingredient', backref='recipe_assoc') # Allows easy access recipe_ingredient.ingredient.name etc.
 
     def __repr__(self):
         ing_name = self.ingredient.name if self.ingredient else 'Unknown Ingredient'
@@ -92,6 +96,8 @@ class Food(db.Model):
     carbs = db.Column(db.Float, nullable=False, default=0)
     fat = db.Column(db.Float, nullable=False, default=0)
     fiber = db.Column(db.Float, nullable=True, default=0) # Optional field
+    sugar = db.Column(db.Float, nullable=True, default=0)
+    calcium = db.Column(db.Float, nullable=True, default=0)
     # Add other macros/micros as needed (e.g., sugar, sodium)
     notes = db.Column(db.Text, nullable=True) # Optional notes field
 
@@ -123,11 +129,15 @@ class Ingredient(db.Model):
     carbs = db.Column(db.Float, nullable=True)
     fat = db.Column(db.Float, nullable=True)
     fiber = db.Column(db.Float, nullable=True)
+    sugar = db.Column(db.Float, nullable=True)
+    calcium = db.Column(db.Float, nullable=True)
     # Add other fields like sugar, sodium if desired
 
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    recipe_links = db.relationship('RecipeIngredient', backref='ingredient_detail', lazy='dynamic') #Added lazy dynamic
 
     def __repr__(self):
         return f'<Ingredient {self.name}>'
@@ -150,13 +160,16 @@ class MealLog(db.Model):
     calculated_carbs = db.Column(db.Float, nullable=False)
     calculated_fat = db.Column(db.Float, nullable=False)
     calculated_fiber = db.Column(db.Float, nullable=True)
+    calculated_sugar = db.Column(db.Float, nullable=True)
+    calculated_calcium = db.Column(db.Float, nullable=True)
     # Add other calculated fields matching Food model
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
-        food_name = self.food.name if self.food else 'Unknown Food'
-        return f'<MealLog {self.quantity_consumed} {self.food.base_unit if self.food else ""} of {food_name} on {self.log_date}>'
+        food_name = self.food.name if self.food else 'Recipe unknown'
+        unit = self.food.base_unit if self.food else 'serving'
+        return f'<MealLog {self.quantity_consumed} {unit} of {food_name} on {self.log_date}>'
 
 # --- Forms ---
 
@@ -203,6 +216,8 @@ class IngredientForm(FlaskForm):
     carbs = FloatField('Est. Carbs (g) (per defined Qty)', validators=[Optional(), NumberRange(min=0)])
     fat = FloatField('Est. Fat (g) (per defined Qty)', validators=[Optional(), NumberRange(min=0)])
     fiber = FloatField('Est. Fiber (g) (per defined Qty)', validators=[Optional(), NumberRange(min=0)])
+    sugar = FloatField('Est. Sugar(g) (per defined Qty)', validators=[Optional(), NumberRange(min=0)])
+    calcium = FloatField('Est. calcium(g) (per defined Qty)', validators=[Optional(), NumberRange(min=0)])
     # Add others if included in model
 
     notes = TextAreaField('Notes', validators=[Optional()])
@@ -217,6 +232,9 @@ class FoodForm(FlaskForm):
     carbs = FloatField('Carbohydrates (g)', default=0, validators=[InputRequired(), NumberRange(min=0)])
     fat = FloatField('Fat (g)', default=0, validators=[InputRequired(), NumberRange(min=0)])
     fiber = FloatField('Fiber (g)', default=0, validators=[Optional(), NumberRange(min=0)])
+    sugar = FloatField('Sugar (g)', default=0, validators=[Optional(), NumberRange(min=0)])
+    calcium = FloatField('Calcium (mg)', default=0, validators=[Optional(), NumberRange(min=0)])
+    
     notes = TextAreaField('Notes', validators=[Optional()])
     submit = SubmitField('Save Food')
 
@@ -237,7 +255,7 @@ class LogEntryForm(FlaskForm):
 # --- Helper Functions ---
 def calculate_recipe_nutrition(recipe_id):
     """Calculates and returns total estimated nutrition for a given recipe ID."""
-    totals = {'calories': 0.0, 'protein': 0.0, 'carbs': 0.0, 'fat': 0.0, 'fiber': 0.0} # Add others...
+    totals = {'calories': 0.0, 'protein': 0.0, 'carbs': 0.0, 'fat': 0.0, 'fiber': 0.0, 'sugar':0.0, 'calcium':0.0} # Add others...
     recipe = Recipe.query.get(recipe_id)
     if not recipe:
         return None # Or raise error
@@ -269,6 +287,8 @@ def calculate_recipe_nutrition(recipe_id):
         totals['carbs']    += (safe_get_nutrient(ingredient.carbs) * multiplier)
         totals['fat']      += (safe_get_nutrient(ingredient.fat) * multiplier)
         totals['fiber']    += (safe_get_nutrient(ingredient.fiber) * multiplier)
+        totals['sugar']    += (safe_get_nutrient(ingredient.sugar) * multiplier)
+        totals['calcium']    += (safe_get_nutrient(ingredient.calcium) * multiplier)
         # Add others...
 
     # Ensure final totals are finite numbers
@@ -281,7 +301,7 @@ def calculate_recipe_nutrition(recipe_id):
 def calculate_nutrients(food, quantity_consumed):
     """Calculates nutrients based on the logged quantity."""
     results = {
-        'calories': 0.0, 'protein': 0.0, 'carbs': 0.0, 'fat': 0.0, 'fiber': 0.0
+        'calories': 0.0, 'protein': 0.0, 'carbs': 0.0, 'fat': 0.0, 'fiber': 0.0, 'sugar':0.0, 'calcium':0.0
         # Add keys for other nutrients tracked
     }
     if not food or food.base_quantity is None or food.base_quantity == 0 or quantity_consumed is None:
@@ -304,6 +324,8 @@ def calculate_nutrients(food, quantity_consumed):
         results['carbs']    = safe_calc(food.carbs, multiplier)
         results['fat']      = safe_calc(food.fat, multiplier)
         results['fiber']    = safe_calc(food.fiber, multiplier)
+        results['sugar']      = safe_calc(food.sugar, multiplier)
+        results['calcium']    = safe_calc(food.calcium, multiplier)
         # Calculate other nutrients here...
 
     except (TypeError, ValueError, ZeroDivisionError) as e:
@@ -315,13 +337,15 @@ def calculate_nutrients(food, quantity_consumed):
 def get_day_summary(log_date_obj):
     """Calculates total nutrients for a given date."""
     logs = MealLog.query.filter_by(log_date=log_date_obj).all()
-    summary = { 'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0, 'fiber': 0 }
+    summary = { 'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0, 'fiber': 0, 'sugar':0, 'calcium':0 }
     for log in logs:
         summary['calories'] += log.calculated_calories or 0
         summary['protein'] += log.calculated_protein or 0
         summary['carbs'] += log.calculated_carbs or 0
         summary['fat'] += log.calculated_fat or 0
         summary['fiber'] += log.calculated_fiber or 0
+        summary['sugar'] += log.calculated_sugar or 0
+        summary['calcium'] += log.calculated_calcium or 0
         # Sum other nutrients...
     return summary
 
@@ -471,6 +495,12 @@ def add_ingredient_to_recipe(recipe_id):
                     if updated_totals:
                         recipe.total_calories = updated_totals['calories']
                         recipe.total_protein = updated_totals['protein']
+                        recipe.total_carbs = updated_totals['carbs']
+                        recipe.total_fat = updated_totals['fat']
+                        recipe.total_fiber = updated_totals['fibre']
+                        recipe.total_sugar = updated_totals['sugar']
+                        recipe.total_calcium = updated_totals['calcium']
+                        recipe.updated_at = datetime.utcnow()
                         # ... set other totals ...
                         recipe.updated_at = datetime.utcnow()
                     else:
@@ -500,7 +530,7 @@ def add_ingredient_to_recipe(recipe_id):
 # Route to remove an ingredient from a recipe
 @app.route('/recipes/remove_ingredient/<int:recipe_ingredient_id>', methods=['POST'])
 def remove_ingredient_from_recipe(recipe_ingredient_id):
-    ri = RecipeIngredient.query.get_or_404(recipe_ingredient_id)
+    ri = RecipeIngredient.query.options(db.joinedload(RecipeIngredient.ingredient)).get_or_404(recipe_ingredient_id)
     recipe_id = ri.recipe_id # Get recipe ID before deleting
     ingredient_name = ri.ingredient.name if ri.ingredient else 'Ingredient'
     try:
@@ -519,14 +549,17 @@ def remove_ingredient_from_recipe(recipe_ingredient_id):
                 recipe.total_carbs = updated_totals['carbs']
                 recipe.total_fat = updated_totals['fat']
                 recipe.total_fiber = updated_totals['fiber']
+                recipe.total_sugar = updated_totals['sugar']
+                recipe.total_calcium = updated_totals['calcium']
                 # Update others...
                 recipe.updated_at = datetime.utcnow()
             else:
+                 recipe.total_calories = 0
+                 recipe.total_protein = 0
                  flash("Could not recalculate recipe totals.", "warning")
                  # Set totals to None/0 if desired when empty?
                  # recipe.total_calories = None ... etc ...
-        else:
-            db.session.commit()
+        db.session.commit()
         flash(f"Removed {ingredient_name} from recipe.", 'success')
     except Exception as e:
         db.session.rollback()
@@ -577,6 +610,8 @@ def add_ingredient():
                     carbs=form.carbs.data if form.carbs.data is not None else None,
                     fat=form.fat.data if form.fat.data is not None else None,
                     fiber=form.fiber.data if form.fiber.data is not None else None,
+                    sugar=form.sugar.data if form.sugar.data is not None else None,
+                    calcium=form.calcium.data if form.calcium.data is not None else None,
                     notes=form.notes.data,
                     # created_at is handled by default
                     updated_at=datetime.utcnow() # Set initial updated_at
@@ -618,6 +653,8 @@ def edit_ingredient(ingredient_id):
                 ingredient.carbs = form.carbs.data if form.carbs.data is not None else None
                 ingredient.fat = form.fat.data if form.fat.data is not None else None
                 ingredient.fiber = form.fiber.data if form.fiber.data is not None else None
+                sugar=form.sugar.data if form.sugar.data is not None else None
+                calcium=form.calcium.data if form.calcium.data is not None else None
                 ingredient.notes = form.notes.data
                 ingredient.updated_at = datetime.utcnow() # Update timestamp
 
@@ -693,7 +730,9 @@ def daily_log():
                 calculated_protein=calculated.get('protein', 0.0),
                 calculated_carbs=calculated.get('carbs', 0.0),
                 calculated_fat=calculated.get('fat', 0.0),
-                calculated_fiber=calculated.get('fiber', 0.0)
+                calculated_fiber=calculated.get('fiber', 0.0),
+                calculated_sugar=calculated.get('sugar',0.0),
+                calculated_calcium=calculated.get('calcium',0.0)
                 # Add other calculated values...
             )
             db.session.add(new_log)
@@ -767,6 +806,8 @@ def add_food():
                     carbs=form.carbs.data,
                     fat=form.fat.data,
                     fiber=form.fiber.data,
+                    sugar=form.sugar.data,
+                    calcium=form.calcium.data,
                     notes=form.notes.data
                     # Add other fields...
                 )
@@ -802,6 +843,8 @@ def edit_food(food_id):
                 food.carbs=form.carbs.data
                 food.fat=form.fat.data
                 food.fiber=form.fiber.data
+                food.sugar=form.sugar.data
+                food.calcium=form.calcium.data
                 food.notes=form.notes.data
                 # Update other fields...
                 food.updated_at = datetime.utcnow()

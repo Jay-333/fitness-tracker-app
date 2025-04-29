@@ -76,6 +76,22 @@
             {% endif %}
         </div>
 
+        <div class="col-md-3">
+            <label for="{{ form.sugar.id }}" class="form-label">{{ form.sugar.label }} (Optional)</label>
+            {{ form.sugar(class="form-control" + (" is-invalid" if form.sugar.errors else ""), type="number", step="any") }}
+             {% if form.sugar.errors %}
+                <div class="invalid-feedback">{% for error in form.sugar.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-3">
+            <label for="{{ form.calcium.id }}" class="form-label">{{ form.calcium.label }} (Optional)</label>
+            {{ form.calcium(class="form-control" + (" is-invalid" if form.calcium.errors else ""), type="number", step="any") }}
+             {% if form.calcium.errors %}
+                <div class="invalid-feedback">{% for error in form.calcium.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
         <div class="col-12">
              <label for="{{ form.notes.id }}" class="form-label">{{ form.notes.label }} (Optional)</label>
             {{ form.notes(class="form-control" + (" is-invalid" if form.notes.errors else ""), rows="3") }}
