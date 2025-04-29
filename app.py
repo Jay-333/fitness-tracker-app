@@ -234,7 +234,7 @@ class FoodForm(FlaskForm):
     fiber = FloatField('Fiber (g)', default=0, validators=[Optional(), NumberRange(min=0)])
     sugar = FloatField('Sugar (g)', default=0, validators=[Optional(), NumberRange(min=0)])
     calcium = FloatField('Calcium (mg)', default=0, validators=[Optional(), NumberRange(min=0)])
-    
+
     notes = TextAreaField('Notes', validators=[Optional()])
     submit = SubmitField('Save Food')
 
@@ -497,7 +497,7 @@ def add_ingredient_to_recipe(recipe_id):
                         recipe.total_protein = updated_totals['protein']
                         recipe.total_carbs = updated_totals['carbs']
                         recipe.total_fat = updated_totals['fat']
-                        recipe.total_fiber = updated_totals['fibre']
+                        recipe.total_fiber = updated_totals['fiber']
                         recipe.total_sugar = updated_totals['sugar']
                         recipe.total_calcium = updated_totals['calcium']
                         recipe.updated_at = datetime.utcnow()

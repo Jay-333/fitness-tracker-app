@@ -33,13 +33,13 @@
             <td>{{ food.name }}</td>
             <td>{{ food.base_unit }}</td>
             <td>{{ food.base_quantity | round(1) }}</td>
-            <td>{{ food.calories | round(0) }}</td>
-            <td>{{ food.protein | round(1) }}</td>
-            <td>{{ food.carbs | round(1) }}</td>
-            <td>{{ food.fat | round(1) }}</td>
-            <td>{{ food.fiber | round(1) }}</td>
-            <td>{{ food.sugar | round(1) }}</td>
-            <td>{{ food.calcium | round(1) }}</td>
+            <td>{{ food.calories | round(0) if food.calories is not none else '-' }}</td>
+            <td>{{ food.protein | round(1) if food.protein is not none else '-' }}</td>
+            <td>{{ food.carbs | round(1) if food.carbs is not none else '-' }}</td>
+            <td>{{ food.fat | round(1) if food.fat is not none else '-' }}</td>
+            <td>{{ food.fiber | round(1) if food.fiber is not none else '-' }}</td>
+            <td>{{ food.sugar | round(1) if food.sugar is not none else '-' }}</td>
+            <td>{{ food.calcium | round(1) if food.calcium is not none else '-' }}</td>
             <td>{{ food.notes[:50] + '...' if food.notes and food.notes|length > 50 else food.notes }}</td>
             <td>
                 <a href="{{ url_for('edit_food', food_id=food.id) }}" class="btn btn-sm btn-warning mb-1 d-inline-block">Edit</a>
