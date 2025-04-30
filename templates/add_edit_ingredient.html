@@ -7,6 +7,7 @@
 
 <form method="POST" action="{{ action_url }}">
     {{ form.csrf_token }}
+    {{ form.data_source_flag }}
 
     <div class="row g-3 mb-3">
         <div class="col-md-6">
@@ -49,13 +50,13 @@
 
 
     <div class="row g-3">
-         <div class="col-md-4 col-sm-6">
-             <label for="{{ form.calories.id }}" class="form-label">{{ form.calories.label }}</label>
+        <div class="col-md-4 col-sm-6">
+            <label for="{{ form.calories.id }}" class="form-label">{{ form.calories.label }}</label>
             {{ form.calories(class="form-control" + (" is-invalid" if form.calories.errors else ""), type="number", step="any") }}
             {% if form.calories.errors %}<div class="invalid-feedback d-block">{% for error in form.calories.errors %}{{ error }}{% endfor %}</div>{% endif %}
         </div>
-         <div class="col-md-4 col-sm-6">
-             <label for="{{ form.protein.id }}" class="form-label">{{ form.protein.label }}</label>
+        <div class="col-md-4 col-sm-6">
+            <label for="{{ form.protein.id }}" class="form-label">{{ form.protein.label }}</label>
             {{ form.protein(class="form-control" + (" is-invalid" if form.protein.errors else ""), type="number", step="any") }}
              {% if form.protein.errors %}<div class="invalid-feedback d-block">{% for error in form.protein.errors %}{{ error }}{% endfor %}</div>{% endif %}
         </div>
@@ -69,10 +70,20 @@
             {{ form.fat(class="form-control" + (" is-invalid" if form.fat.errors else ""), type="number", step="any") }}
              {% if form.fat.errors %}<div class="invalid-feedback d-block">{% for error in form.fat.errors %}{{ error }}{% endfor %}</div>{% endif %}
         </div>
-         <div class="col-md-4 col-sm-6">
+        <div class="col-md-4 col-sm-6">
              <label for="{{ form.fiber.id }}" class="form-label">{{ form.fiber.label }}</label>
             {{ form.fiber(class="form-control" + (" is-invalid" if form.fiber.errors else ""), type="number", step="any") }}
              {% if form.fiber.errors %}<div class="invalid-feedback d-block">{% for error in form.fiber.errors %}{{ error }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="col-md-4 col-sm-6">
+            <label for="{{ form.sugar.id }}" class="form-label">{{ form.sugar.label }}</label>
+           {{ form.sugar(class="form-control" + (" is-invalid" if form.sugar.errors else ""), type="number", step="any") }}
+            {% if form.sugar.errors %}<div class="invalid-feedback d-block">{% for error in form.sugar.errors %}{{ error }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="col-md-4 col-sm-6">
+            <label for="{{ form.calcium.id }}" class="form-label">{{ form.calcium.label }}</label>
+           {{ form.calcium(class="form-control" + (" is-invalid" if form.calcium.errors else ""), type="number", step="any") }}
+            {% if form.calcium.errors %}<div class="invalid-feedback d-block">{% for error in form.calcium.errors %}{{ error }}{% endfor %}</div>{% endif %}
         </div>
         <!-- Add fields for other nutrients if added to model/form -->
     </div>

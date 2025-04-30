@@ -4,9 +4,23 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>My Ingredients (Virtual Fridge)</h2>
-    <a href="{{ url_for('add_ingredient') }}" class="btn btn-primary">Add New Ingredient</a>
+    <h2>My Ingredients</h2>
+    <a href="{{ url_for('add_ingredient') }}" class="btn btn-outline-secondary">Add Manually</a> {# Changed button #}
 </div>
+
+{# --- NEW Lookup Form --- #}
+<form method="GET" action="{{ url_for('add_ingredient') }}" class="row g-2 align-items-center mb-4 p-3 bg-light rounded">
+    <div class="col-auto">
+         <label for="lookup_name" class="visually-hidden">Ingredient Name</label>
+         <input type="text" class="form-control" name="lookup_name" id="lookup_name" placeholder="Lookup & Add (e.g., broccoli)" required>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Lookup Nutritionix</button>
+    </div>
+     <div class="col-12">
+         <small class="text-muted">Attempts to fetch nutritional data from Nutritionix API to pre-fill the 'Add Ingredient' form.</small>
+    </div>
+</form>
 <p class="text-muted">Manage the base ingredients you commonly use or have available.</p>
 
 {% if ingredients %}
@@ -25,6 +39,7 @@
             <th>Fib</th>
             <th>Sugar</th>
             <th>Calc</th>
+            <th>Sources</th>
             <th>Notes</th>
             <th>Actions</th>
         </tr>
@@ -43,6 +58,15 @@
             <td>{{ ing.fiber | round(1) if ing.fiber is not none else '-' }}</td>
             <td>{{ ing.sugar | round(1) if ing.sugar is not none else '-' }}</td>
             <td>{{ ing.calcium | round(1) if ing.calcium is not none else '-' }}</td>
+            <td>{# <-- NEW Column Data --> #}
+                {% if ing.data_source == 'nutritionix' %}
+                    <span class="badge bg-success" title="{{ ing.api_info or 'Fetched via API' }}">Nutritionix</span>
+                {% elif ing.data_source %}
+                     <span class="badge bg-secondary">{{ ing.data_source }}</span>
+                {% else %}
+                     <span class="badge bg-warning">Manual</span>
+                {% endif %}
+            </td>
             <td class="text-truncate" style="max-width: 150px;">{{ ing.notes | default('', true) }}</td>
             <td>
                 <a href="{{ url_for('edit_ingredient', ingredient_id=ing.id) }}" class="btn btn-sm btn-warning mb-1 d-inline-block">Edit</a>

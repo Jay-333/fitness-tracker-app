@@ -1,5 +1,9 @@
 import os
-# import requests # Removed as requested
+from dotenv import load_dotenv
+
+load_dotenv()
+
+import requests
 from datetime import date, datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, abort, jsonify # Added jsonify just in case
 from flask_sqlalchemy import SQLAlchemy
@@ -13,6 +17,12 @@ from sqlalchemy import CheckConstraint, MetaData # Keep for migrations
 
 # --- App Configuration ---
 app = Flask(__name__)
+
+# --- Nutritionix API configuration ---
+NUTRITIONIX_API_URL_NATURAL = "https://trackapi.nutritionix.com/v2/natural/nutrients"
+# Add other endpoints like /v2/search/instant if needed later
+NUTRITIONIX_APP_ID = os.environ.get('NUTRITIONIX_APP_ID')
+NUTRITIONIX_API_KEY = os.environ.get('NUTRITIONIX_API_KEY')
 
 # --- Naming Convention (Essential for Alembic/Migrate) ---
 convention = {
@@ -84,6 +94,12 @@ class Ingredient(db.Model):
     fiber = db.Column(db.Float, nullable=True)
     sugar = db.Column(db.Float, nullable=True)    # Added
     calcium = db.Column(db.Float, nullable=True) # Added
+
+    # ---- NEW Fields for API info ----
+    data_source = db.Column(db.String(50), nullable=True)
+    api_name = db.Column(db.String(250), nullable=True)
+    api_info = db.Column(db.String(100), nullable=True)
+
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -200,6 +216,7 @@ class IngredientForm(FlaskForm):
     sugar = FloatField('Est. Sugar(g) (per defined Qty)', validators=[Optional(), NumberRange(min=0)])     # Added
     calcium = FloatField('Est. calcium(mg?) (per defined Qty)', validators=[Optional(), NumberRange(min=0)]) # Added (clarify unit?)
     notes = TextAreaField('Notes', validators=[Optional()])
+    data_source_flag = HiddenField(default='manual')
     submit = SubmitField('Save Ingredient')
 
 class RecipeForm(FlaskForm):
@@ -359,6 +376,124 @@ def get_day_summary(log_date_obj):
         summary['sugar'] += log.calculated_sugar or 0     # Added
         summary['calcium'] += log.calculated_calcium or 0 # Added
     return summary
+
+def get_nutritionix_ingredient_data(ingredient_name):
+    """
+    Queries Nutritionix natural language API for generic amount (e.g. 100g)
+    of an ingredient and returns parsed, normalized nutritional data (ideally per 100g).
+    Returns None if not found or error occurs
+    """
+    if not NUTRITIONIX_APP_ID or not NUTRITIONIX_API_KEY:
+        print("ERROR: Nutritionix API credentials missing.")
+        flash("API credentials not configured. Cannot perform lookup.","error")
+        return None
+    
+    # Query for a standard amount to make normalization easier
+    query = f"100g {ingredient_name}"
+
+    headers = {'x-app-id': NUTRITIONIX_APP_ID, 'x-app-key': NUTRITIONIX_API_KEY, 'Content-Type':
+               'application/json'}
+    payload = {"query": query}
+
+    print(f"Querying Nutritionix for: {query}")
+
+    try:
+        response = requests.post(NUTRITIONIX_API_URL_NATURAL, headers=headers, json=payload, timeout=14) #15s timeout
+        response.raise_for_status() # Raise HTTPError for bad responses
+        data = response.json()
+        if data and 'foods' in data and data['foods']:
+            food_data = data['foods'][0]
+
+            parsed = {
+                'name' : food_data.get('food_name'),
+                'api_serving_qty' : food_data.get('serving_qty'),
+                'api_serving_unit' : food_data.get('serving_unit'),
+                'api_serving_grams' : food_data.get('serving_weight_grams'),
+                'calories' : food_data.get('nf_calories'),
+                'protein' : food_data.get('nf_protein'),
+                'carbs' : food_data.get('nf_total_carbohydrate'),
+                'fat' : food_data.get('nf_total_fat'),
+                'fiber' : food_data.get('nf_dietary_fiber'),
+                'sugar' : food_data.get('nf_sugar'),
+                'calcium' : food_data.get('nf_calcium_mg'),
+                'sodium' : food_data.get('nf_sodium'),
+                'nix_id' : food_data.get('nix_item_id') or food_data.get('tag_id'),
+                'photo' : food_data.get('photo', {}).get('thumb')
+            }
+
+            # -- normalize to db format ---
+            # Since we queried for 100g, the returned values should ideally be per 100g
+            grams = parsed.get('api_serving_grams')
+            db_data = {'source': 'nutritionix'}
+            if grams and abs(grams-100.0)<1:
+                db_data['base_unit'] = 'g'
+                db_data['unit_quantity'] = 100.0
+                db_data['calories'] = parsed.get('calories')
+                db_data['protein'] = parsed.get('protein')
+                db_data['carbs'] = parsed.get('carbs')
+                db_data['fat'] = parsed.get('fat')
+                db_data['fiber'] = parsed.get('fiber')
+                db_data['sugar'] = parsed.get('sugar')
+                db_data['calcium'] = parsed.get('calcium')
+                db_data['name_from_api'] = parsed.get('name')
+                db_data['api_info_str'] = f"{parsed.get('api_serving_qty')} {parsed.get('api_serving_unit')} ({grams:.1f}g)"
+            elif grams and grams > 0:
+                #If API returned data for a different weight, normalize for 100g
+                print(f"WARN: Normalizing API from {grams}g to 100g for {ingredient_name}")
+                factor = 100.0/grams
+                db_data['base_unit'] = 'g'
+                db_data['unit_quantity'] = 100.0
+                def safe_mult(val, f): return (float(val)*f) if val is not None else None
+                db_data['calories'] = safe_mult(parsed.get('calories'), factor)
+                db_data['protein'] = safe_mult(parsed.get('protein'), factor)
+                db_data['carbs'] = safe_mult(parsed.get('carbs'), factor)
+                db_data['fat'] = safe_mult(parsed.get('fat'), factor)
+                db_data['fiber'] = safe_mult(parsed.get('fiber'), factor)
+                db_data['sugar'] = safe_mult(parsed.get('sugar'), factor)
+                db_data['calcium'] = safe_mult(parsed.get('calcium'), factor)
+                db_data['name_from_api'] = parsed.get('name')
+                db_data['api_info_str'] = f"API: {parsed.get('api_serving_qty')} {parsed.get('api_serving_unit')} ({grams:.1f}g)"
+            else:
+                print(f"WARN: Cannot normalize {ingredient_name} to grams. Storing as per API serving.")
+                db_data['base_unit'] = parsed.get('api_serving_unit', 'serving')
+                db_data['unit_quantity'] = parsed.get('api_serving_qty', 1.0)
+                db_data['calories'] = parsed.get('calories') # Store as is
+                db_data['protein'] = parsed.get('protein')
+                db_data['carbs'] = parsed.get('carbs')
+                db_data['fat'] = parsed.get('fat')
+                db_data['fiber'] = parsed.get('fiber')
+                db_data['sugar'] = parsed.get('sugar')
+                db_data['calcium'] = parsed.get('calcium')
+                db_data['name_from_api'] = parsed.get('name')
+                db_data['api_info_str'] = f"API: {parsed.get('api_serving_qty')} {parsed.get('api_serving_unit')}"
+
+            return db_data # Return dict with data ready for form pre-population
+
+        else: # API returned success but no 'foods' array
+             print(f"No 'foods' data found in Nutritionix response for '{ingredient_name}'")
+             return None
+
+    except requests.exceptions.HTTPError as e:
+        print(f"ERROR: Nutritionix API HTTP Error: {e.response.status_code} for query '{query}'")
+        if e.response.status_code == 404: # Not Found is common
+            print("Food not found by Nutritionix API.")
+            # No need to flash here, handled in route
+        else: # Other errors like auth, server issues
+            print(f"Response Body: {e.response.text}")
+            flash(f"API Error ({e.response.status_code}). Check keys or API status.", "warning")
+        return None # Signal not found / error
+    except requests.exceptions.RequestException as e:
+        print(f"ERROR: Nutritionix API request failed: {e}")
+        flash("Network error contacting Nutritionix API.", "error")
+        return None
+    except Exception as e: # Catch JSON errors, other unexpected errors
+        print(f"ERROR: Processing Nutritionix response failed: {e}")
+        import traceback
+        traceback.print_exc()
+        flash("Error processing API response.", "error")
+        return None
+
+
 
 # --- Routes ---
 
@@ -622,13 +757,53 @@ def ingredients_list():
 
 @app.route('/ingredients/add', methods=['GET', 'POST'])
 def add_ingredient():
-    form = IngredientForm()
-    if form.validate_on_submit():
-        # ... (Keep existing logic, ensure new fields are saved) ...
-        existing = Ingredient.query.filter(db.func.lower(Ingredient.name) == form.name.data.strip().lower()).first()
-        if existing: flash('Ingredient already exists.', 'danger')
+    form = IngredientForm() # Instantiate blank form initially
+    lookup_name = request.args.get('lookup_name', None) # Check for lookup request
+
+    # --- GET Request Logic ---
+    if request.method == 'GET' and lookup_name:
+        print(f"Attempting lookup for: {lookup_name}")
+        api_data = get_nutritionix_ingredient_data(lookup_name)
+
+        if api_data:
+            # Pre-populate form with fetched data
+            form.name.data = lookup_name # Keep user's original search term for name? Or use API name? Let's use user's term.
+            # form.name.data = api_data.get('name_from_api', lookup_name) # Option: use API name
+            form.typical_unit.data = api_data.get('base_unit', 'g')
+            form.unit_quantity.data = api_data.get('unit_quantity', 100.0)
+            # Use .get with default None for optional fields
+            form.calories.data = api_data.get('calories')
+            form.protein.data = api_data.get('protein')
+            form.carbs.data = api_data.get('carbs')
+            form.fat.data = api_data.get('fat')
+            form.fiber.data = api_data.get('fiber')
+            form.sugar.data = api_data.get('sugar')
+            form.calcium.data = api_data.get('calcium')
+            # Pre-populate notes with API info?
+            form.notes.data = api_data.get('api_info_str', '')
+
+            form.data_source_flag.data = 'nutritionix' # Signal that this data came from API
+
+            flash(f"Nutritionix data found for '{lookup_name}'. Please review and save.", 'info')
+        else:
+            # API lookup failed or no data found, pre-fill only name
+            form.name.data = lookup_name
+            flash(f"Could not find Nutritionix data for '{lookup_name}'. Please enter details manually.", 'warning')
+
+    # --- POST Request Logic ---
+    if form.validate_on_submit(): # This runs ONLY on POST
+        existing_ingredient = Ingredient.query.filter(db.func.lower(Ingredient.name) == form.name.data.strip().lower()).first()
+        if existing_ingredient:
+            flash('An ingredient with this name already exists.', 'danger')
+            # Re-render form keeping user edits
+            return render_template('add_edit_ingredient.html', form=form, title='Add New Ingredient', action_url=url_for('add_ingredient'))
         else:
             try:
+                # Determine data source based on whether notes contain API info (simple check)
+                data_source = form.data_source_flag.data or 'manual'
+                api_info_str = form.notes.data if data_source == 'nutritionix' else None
+                api_name_str = None # Could store form.name.data here if source is API? Or only if different?
+
                 new_ingredient = Ingredient(
                     name=form.name.data.strip(),
                     category=form.category.data.strip() if form.category.data else None,
@@ -639,17 +814,25 @@ def add_ingredient():
                     carbs=form.carbs.data if form.carbs.data is not None else None,
                     fat=form.fat.data if form.fat.data is not None else None,
                     fiber=form.fiber.data if form.fiber.data is not None else None,
-                    sugar=form.sugar.data if form.sugar.data is not None else None,       # Added
-                    calcium=form.calcium.data if form.calcium.data is not None else None,   # Added
-                    notes=form.notes.data
-                    # updated_at handled by default/onupdate
+                    sugar=form.sugar.data if form.sugar.data is not None else None,
+                    calcium=form.calcium.data if form.calcium.data is not None else None,
+                    notes=form.notes.data if data_source == 'manual' else '', # Clear notes if API info stored elsewhere
+                    data_source=data_source,    # <-- Save source
+                    api_info=api_info_str,      # <-- Save API info
+                    api_name=api_name_str,      # <-- Save API name (optional)
+                    updated_at=datetime.utcnow()
                 )
                 db.session.add(new_ingredient)
                 db.session.commit()
-                flash(f'Ingredient "{new_ingredient.name}" added.', 'success')
+                flash(f'Ingredient "{new_ingredient.name}" added ({data_source}).', 'success')
                 return redirect(url_for('ingredients_list'))
             except Exception as e:
-                db.session.rollback(); flash(f'Error adding ingredient: {e}', 'danger')
+                db.session.rollback()
+                flash(f'Error adding ingredient: {e}', 'danger')
+                print(f"ERROR adding ingredient: {e}")
+                # Fall through to render form again
+
+    # Render template on initial GET, failed lookup GET, or failed POST validation
     return render_template('add_edit_ingredient.html',
                            form=form,
                            title='Add New Ingredient',
@@ -657,37 +840,42 @@ def add_ingredient():
 
 @app.route('/ingredients/edit/<int:ingredient_id>', methods=['GET', 'POST'])
 def edit_ingredient(ingredient_id):
-    ingredient = Ingredient.query.get_or_404(ingredient_id)
-    form = IngredientForm(obj=ingredient)
-    if form.validate_on_submit():
-        # ... (Keep existing logic, ensure new fields are updated) ...
-        new_name_lower = form.name.data.strip().lower()
-        existing = Ingredient.query.filter(db.func.lower(Ingredient.name) == new_name_lower, Ingredient.id != ingredient_id).first()
-        if existing: flash('Another ingredient has this name.', 'danger')
-        else:
-            try:
-                ingredient.name = form.name.data.strip()
-                ingredient.category = form.category.data.strip() if form.category.data else None
-                ingredient.typical_unit = form.typical_unit.data.strip()
-                ingredient.unit_quantity = form.unit_quantity.data
-                ingredient.calories = form.calories.data if form.calories.data is not None else None
-                ingredient.protein = form.protein.data if form.protein.data is not None else None
-                ingredient.carbs = form.carbs.data if form.carbs.data is not None else None
-                ingredient.fat = form.fat.data if form.fat.data is not None else None
-                ingredient.fiber = form.fiber.data if form.fiber.data is not None else None
-                ingredient.sugar = form.sugar.data if form.sugar.data is not None else None       # Added
-                ingredient.calcium = form.calcium.data if form.calcium.data is not None else None   # Added
-                ingredient.notes = form.notes.data
-                ingredient.updated_at = datetime.utcnow()
-                db.session.commit()
-                flash(f'Ingredient "{ingredient.name}" updated.', 'success')
-                return redirect(url_for('ingredients_list'))
-            except Exception as e:
-                db.session.rollback(); flash(f'Error updating ingredient: {e}', 'danger')
-    return render_template('add_edit_ingredient.html',
-                           form=form,
-                           title=f'Edit Ingredient: {ingredient.name}',
-                           action_url=url_for('edit_ingredient', ingredient_id=ingredient_id))
+     ingredient = Ingredient.query.get_or_404(ingredient_id)
+     form = IngredientForm(obj=ingredient) # Pre-populates with DB data
+
+     if form.validate_on_submit():
+         new_name_lower = form.name.data.strip().lower()
+         existing_conflict = Ingredient.query.filter(
+             db.func.lower(Ingredient.name) == new_name_lower,
+             Ingredient.id != ingredient_id
+         ).first()
+         if existing_conflict: flash('Another ingredient has this name.', 'danger')
+         else:
+             try:
+                 ingredient.name = form.name.data.strip()
+                 ingredient.category = form.category.data.strip() if form.category.data else None
+                 ingredient.typical_unit = form.typical_unit.data.strip()
+                 ingredient.unit_quantity = form.unit_quantity.data
+                 ingredient.calories = form.calories.data if form.calories.data is not None else None
+                 ingredient.protein = form.protein.data if form.protein.data is not None else None
+                 ingredient.carbs = form.carbs.data if form.carbs.data is not None else None
+                 ingredient.fat = form.fat.data if form.fat.data is not None else None
+                 ingredient.fiber = form.fiber.data if form.fiber.data is not None else None
+                 ingredient.sugar = form.sugar.data if form.sugar.data is not None else None
+                 ingredient.calcium = form.calcium.data if form.calcium.data is not None else None
+                 ingredient.notes = form.notes.data
+                 ingredient.updated_at = datetime.utcnow()
+                 # Mark as manual if edited? Or keep original source? Let's keep source for now.
+                 # ingredient.data_source = 'manual_edit' # Option
+                 db.session.commit()
+                 flash(f'Ingredient "{ingredient.name}" updated.', 'success')
+                 return redirect(url_for('ingredients_list'))
+             except Exception as e:
+                 db.session.rollback(); flash(f'Error updating ingredient: {e}', 'danger')
+     return render_template('add_edit_ingredient.html',
+                            form=form,
+                            title=f'Edit Ingredient: {ingredient.name}',
+                            action_url=url_for('edit_ingredient', ingredient_id=ingredient_id))
 
 @app.route('/ingredients/delete/<int:ingredient_id>', methods=['POST'])
 def delete_ingredient(ingredient_id):
