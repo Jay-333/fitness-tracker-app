@@ -35,6 +35,8 @@
             <li class="nav-item">
               <a class="nav-link {% if request.endpoint == 'recipes_list' or request.endpoint == 'recipe_detail' %}active{% endif %}" href="{{ url_for('recipes_list') }}">My Recipes</a>
             </li>
+            <li class="nav-item"> {# <-- NEW LINK --> #}
+              <a class="nav-link {% if request.endpoint == 'suggest_meal_plan' %}active{% endif %}" href="{{ url_for('suggest_meal_plan') }}">Suggest Plan</a>
           </ul>
         </div>
       </div>

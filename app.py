@@ -748,6 +748,149 @@ def delete_recipe(recipe_id):
 # Comment out db.create_all() if using Flask-Migrate exclusively after first run
 # with app.app_context(): db.create_all()
 
+# --- Routes ---
+# Keep all existing routes...
+
+# --- NEW: Meal Suggestion Route ---
+
+# --- Routes ---
+# Keep all existing routes...
+
+# --- MODIFIED: Meal Suggestion Route ---
+
+@app.route('/suggest-meal-plan')
+def suggest_meal_plan():
+    # === Hardcoded Targets (Replace with User Settings later) ===
+    TARGET_CALORIES = 2100.0
+    TARGET_PROTEIN = 100.0
+    # TARGET_FIBER = 30.0 # Can add later
+
+    # === Simple Target Distribution (Approximate percentages) ===
+    targets_per_meal = {
+        'Breakfast': {'protein': TARGET_PROTEIN * 0.30, 'calories': TARGET_CALORIES * 0.25},
+        'Lunch':     {'protein': TARGET_PROTEIN * 0.40, 'calories': TARGET_CALORIES * 0.35},
+        'Dinner':    {'protein': TARGET_PROTEIN * 0.30, 'calories': TARGET_CALORIES * 0.30}
+    }
+
+    # === Fetch Valid Recipes (with nutrition info) ===
+    all_recipes = Recipe.query.filter(
+        Recipe.total_calories.isnot(None),
+        Recipe.total_calories > 0, # Ensure calories > 0 for sensible calculations
+        Recipe.total_protein.isnot(None)
+    ).all()
+
+    if not all_recipes:
+        flash("No recipes found with calculated nutrition data.", "warning")
+        return render_template('suggest_plan.html', suggested_plan=[], targets={'calories': TARGET_CALORIES, 'protein': TARGET_PROTEIN}, plan_totals={})
+
+    # === Meal Planning Algorithm (Heuristic V1 - WITH NO REPEAT) ===
+    suggested_plan = []
+    plan_totals = {'calories': 0.0, 'protein': 0.0, 'carbs': 0.0, 'fat': 0.0, 'fiber': 0.0, 'sugar': 0.0, 'calcium': 0.0, 'iron': 0.0, 'potassium': 0.0, 'sodium': 0.0, 'vit_d': 0.0}
+    remaining_protein = TARGET_PROTEIN
+    remaining_calories = TARGET_CALORIES
+    used_recipe_ids = set() # <-- NEW: Keep track of selected recipe IDs
+
+    # Process meal slots
+    for meal_type in ['Breakfast', 'Lunch', 'Dinner']:
+        meal_target_protein = targets_per_meal[meal_type]['protein']
+        meal_target_calories = targets_per_meal[meal_type]['calories']
+        best_recipe = None
+        multiplier = 0.0
+        portion_nutrients = {}
+
+        # --- Filter recipes suitable for this meal type AND NOT ALREADY USED ---
+        candidate_recipes = [
+            r for r in all_recipes if
+            r.id not in used_recipe_ids and # <-- NEW: Exclude used recipes
+            (meal_type in (r.meal_type_suitability or 'Any').split(',') or
+             'Any' in (r.meal_type_suitability or 'Any').split(','))
+        ]
+
+        if not candidate_recipes:
+            print(f"WARN: No suitable unused recipes found for {meal_type}")
+            suggested_plan.append({'meal_type': meal_type, 'recipe': None, 'multiplier': 0, 'nutrients': {}})
+            continue # Skip to next meal
+
+        # --- Selection Logic ---
+        # Keep prioritization logic (Protein for B/L, Fiber/etc for D)
+        if meal_type in ['Breakfast', 'Lunch']:
+            candidate_recipes.sort(key=lambda r: r.total_protein or 0, reverse=True)
+            best_recipe = candidate_recipes[0] # Select the best remaining candidate
+        elif meal_type == 'Dinner':
+            if hasattr(Recipe, 'total_fiber'):
+                 # Check if fiber data exists and is positive before sorting
+                 candidates_with_fiber = [r for r in candidate_recipes if r.total_fiber and r.total_fiber > 0]
+                 if candidates_with_fiber:
+                     candidates_with_fiber.sort(key=lambda r: r.total_fiber, reverse=True)
+                     best_recipe = candidates_with_fiber[0]
+                 else: # Fallback if no recipes with fiber found
+                     print(f"WARN: No dinner candidates with fiber, falling back to protein sort.")
+                     candidate_recipes.sort(key=lambda r: r.total_protein or 0, reverse=True)
+                     if candidate_recipes: best_recipe = candidate_recipes[0]
+            else: # Fallback if no fiber column at all
+                 candidate_recipes.sort(key=lambda r: r.total_protein or 0, reverse=True)
+                 if candidate_recipes: best_recipe = candidate_recipes[0]
+
+
+        # --- Proceed ONLY if a best_recipe was actually found ---
+        if best_recipe:
+            # --- Calculate Serving Multiplier ---
+            recipe_protein = best_recipe.total_protein or 0.0
+            recipe_calories = best_recipe.total_calories or 0.0 # Assumed > 0 by initial query filter
+
+            if recipe_protein > 0:
+                protein_multiplier = meal_target_protein / recipe_protein
+                multiplier = max(0.1, protein_multiplier) # Minimum 0.1 serving
+            else:
+                multiplier = 1.0 # Default to 1 serving if no protein
+
+            # --- Adjust multiplier based on calories ---
+            calorie_multiplier_meal = meal_target_calories / recipe_calories
+            calorie_multiplier_day = remaining_calories / recipe_calories if remaining_calories > 0 else 1.0
+
+            # Adjust: try to hit protein goal, but cap by meal/day calories, max 2 servings?
+            multiplier = min(multiplier, calorie_multiplier_meal * 1.2, calorie_multiplier_day * 1.1, 2.0) # Allow slight calorie overshoot
+            multiplier = max(0.1, multiplier) # Ensure minimum again
+            multiplier = round(multiplier * 4) / 4 # Round to nearest 0.25
+
+            # --- Calculate Nutrients for this Portion ---
+            portion_nutrients = {
+                key.replace('total_', ''): (getattr(best_recipe, key) or 0) * multiplier
+                for key in best_recipe.__table__.columns.keys() if key.startswith('total_')
+            }
+             # Rename keys to match calculation fields expected later (optional but clearer)
+            portion_nutrients_renamed = {f"calculated_{k}":v for k,v in portion_nutrients.items()}
+
+
+            # --- Add suggestion to plan ---
+            suggested_plan.append({
+                'meal_type': meal_type,
+                'recipe': best_recipe,
+                'multiplier': multiplier,
+                'nutrients': portion_nutrients # Use original keys for display in template? Adjust template if needed.
+            })
+
+            # --- Update State ---
+            used_recipe_ids.add(best_recipe.id) # <-- NEW: Mark recipe as used
+            remaining_protein -= portion_nutrients.get('protein', 0.0)
+            remaining_calories -= portion_nutrients.get('calories', 0.0)
+            for key in plan_totals:
+                plan_totals[key] += portion_nutrients.get(key, 0.0)
+
+        else: # If no suitable candidate found after sorting (e.g., all remaining had 0 protein)
+            print(f"WARN: Could not select a specific recipe for {meal_type} after filtering.")
+            suggested_plan.append({'meal_type': meal_type, 'recipe': None, 'multiplier': 0, 'nutrients': {}})
+
+
+    # Prepare targets dict for template
+    targets = {'calories': TARGET_CALORIES, 'protein': TARGET_PROTEIN}
+
+    return render_template('suggest_plan.html',
+                           suggested_plan=suggested_plan,
+                           targets=targets,
+                           plan_totals=plan_totals)
+
+# ... Keep all other existing routes ...
 # --- Run App ---
 if __name__ == '__main__':
     # Context needed? Maybe not here, but doesn't hurt for potential extensions

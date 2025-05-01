@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Suggested Meal Plan{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Suggested Meal Plan</h2>
+    <a href="{{ url_for('daily_log') }}" class="btn btn-secondary btn-sm">&larr; Back to Daily Log</a>
+</div>
+
+<div class="alert alert-secondary" role="alert">
+    This is an automated suggestion based on your available recipes and predefined targets. Review carefully.
+</div>
+
+{# --- Display Targets --- #}
+<div class="card mb-4">
+    <div class="card-header">Daily Targets Used</div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col">
+                <span class="nutrient-label d-block">Calories</span>
+                <span class="nutrient-value">{{ targets.calories | round(0) }} kcal</span>
+            </div>
+            <div class="col">
+                <span class="nutrient-label d-block">Protein</span>
+                <span class="nutrient-value">{{ targets.protein | round(0) }} g</span>
+            </div>
+            {# Add other target displays if implemented (e.g., Fiber) #}
+        </div>
+    </div>
+</div>
+
+
+{# --- Display Suggested Plan --- #}
+<h3>Suggested Meals</h3>
+{% if suggested_plan %}
+    {% for suggestion in suggested_plan %}
+    <div class="card meal-card mb-3"> {# Use existing meal-card style? #}
+        <div class="card-header">
+            <strong>{{ suggestion.meal_type }}</strong>
+        </div>
+        <div class="card-body">
+            {% if suggestion.recipe %}
+                <h5 class="card-title">
+                    <a href="{{ url_for('recipe_detail', recipe_id=suggestion.recipe.id) }}">{{ suggestion.recipe.name }}</a>
+                </h5>
+                <p class="card-text">
+                    Suggested Amount: <strong>{{ suggestion.multiplier }}</strong> serving(s)
+                </p>
+                {# Display nutrients FOR THIS PORTION #}
+                <div class="row row-cols-3 row-cols-sm-4 row-cols-lg-6 g-2 small text-muted border-top pt-2 mt-2">
+                     <div class="col"><strong>Portion Est:</strong></div>
+                     <div class="col">Cal: {{ suggestion.nutrients.calories | round(0) }}</div>
+                     <div class="col">Prot: {{ suggestion.nutrients.protein | round(1) }}g</div>
+                     <div class="col">Carb: {{ suggestion.nutrients.carbs | round(1) }}g</div>
+                     <div class="col">Fat: {{ suggestion.nutrients.fat | round(1) }}g</div>
+                     <div class="col">Fib: {{ suggestion.nutrients.fiber | round(1) }}g</div>
+                     <div class="col">Sug: {{ suggestion.nutrients.sugar | round(1) }}g</div>
+                     <div class="col">Calc: {{ suggestion.nutrients.calcium | round(0) }}</div>
+                     <div class="col">Iron: {{ suggestion.nutrients.iron | round(1) }}</div>
+                     <div class="col">Potas: {{ suggestion.nutrients.potassium | round(0) }}</div>
+                     <div class="col">Sod: {{ suggestion.nutrients.sodium | round(0) }}</div>
+                     <div class="col">Vit D: {{ suggestion.nutrients.vit_d | round(1) }}</div>
+                </div>
+                {# TODO LATER: Add "Log this portion" button #}
+
+            {% else %}
+                <p class="text-danger">No suitable recipe found for {{ suggestion.meal_type }}.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="alert alert-warning">Could not generate a meal plan. Check if you have recipes with nutrition data defined.</div>
+{% endif %}
+
+{# --- Display Plan Totals & Comparison --- #}
+<hr>
+<h3>Plan Totals vs Targets</h3>
+<div class="card">
+     <div class="card-body">
+        <div class="row text-center">
+            {# Calories #}
+            <div class="col border-end">
+                <span class="nutrient-label d-block">Calories</span>
+                <span class="nutrient-value d-block">{{ plan_totals.calories | round(0) }} kcal</span>
+                 <small class="text-muted">Target: {{ targets.calories | round(0) }}</small>
+            </div>
+             {# Protein #}
+            <div class="col border-end">
+                <span class="nutrient-label d-block">Protein</span>
+                <span class="nutrient-value d-block">{{ plan_totals.protein | round(1) }} g</span>
+                 <small class="text-muted">Target: {{ targets.protein | round(0) }}</small>
+            </div>
+             {# Carbs #}
+            <div class="col border-end">
+                <span class="nutrient-label d-block">Carbs</span>
+                <span class="nutrient-value d-block">{{ plan_totals.carbs | round(1) }} g</span>
+            </div>
+             {# Fat #}
+             <div class="col border-end">
+                 <span class="nutrient-label d-block">Fat</span>
+                 <span class="nutrient-value d-block">{{ plan_totals.fat | round(1) }} g</span>
+             </div>
+              {# Fiber #}
+             <div class="col">
+                 <span class="nutrient-label d-block">Fiber</span>
+                 <span class="nutrient-value d-block">{{ plan_totals.fiber | round(1) }} g</span>
+                 {# <small class="text-muted">Target: ?</small> #}
+             </div>
+         </div>
+          {# Row for other micros if needed #}
+          <div class="row text-center mt-2 pt-2 border-top">
+             <div class="col">Sug: {{ plan_totals.sugar|round(1) }}g</div>
+             <div class="col">Ca: {{ plan_totals.calcium|round(0) }}</div>
+             <div class="col">Fe: {{ plan_totals.iron|round(1) }}</div>
+             <div class="col">K: {{ plan_totals.potassium|round(0) }}</div>
+             <div class="col">Na: {{ plan_totals.sodium|round(0) }}</div>
+             <div class="col">VitD: {{ plan_totals.vit_d|round(1) }}</div>
+         </div>
+     </div>
+</div>
+
+{% endblock %}
