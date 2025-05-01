@@ -55,6 +55,22 @@
                 <span class="nutrient-label d-block">Calcium</span>
                 <span class="nutrient-value">{{ recipe.total_calcium | round(1) if recipe.total_calcium is not none else '-' }} g</span>
             </div>
+            <div class="col">
+                <span class="nutrient-label d-block">iron</span>
+                <span class="nutrient-value">{{ recipe.total_iron | round(1) if recipe.total_iron is not none else '-' }} g</span>
+            </div>
+             <div class="col">
+                <span class="nutrient-label d-block">potassium</span>
+                <span class="nutrient-value">{{ recipe.total_potassium | round(1) if recipe.total_potassium is not none else '-' }} g</span>
+            </div>
+            <div class="col">
+                <span class="nutrient-label d-block">sodium</span>
+                <span class="nutrient-value">{{ recipe.total_sodium | round(1) if recipe.total_sodium is not none else '-' }} g</span>
+            </div>
+            <div class="col">
+                <span class="nutrient-label d-block">vit_d</span>
+                <span class="nutrient-value">{{ recipe.total_vit_d | round(1) if recipe.total_vit_d is not none else '-' }} g</span>
+            </div>
             <!-- Add others if tracked -->
         </div>
     </div>

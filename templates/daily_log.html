@@ -43,6 +43,22 @@
                 <span class="nutrient-label d-block">Calcium</span>
                 <span class="nutrient-value">{{ daily_summary.calcium | round(1) }} g</span>
             </div>
+            <div class="col">
+                <span class="nutrient-label d-block">Iron</span>
+                <span class="nutrient-value">{{ daily_summary.iron | round(1) }} g</span>
+            </div>
+            <div class="col">
+                <span class="nutrient-label d-block">Potassium</span>
+                <span class="nutrient-value">{{ daily_summary.potassium | round(1) }} g</span>
+            </div>
+            <div class="col">
+                <span class="nutrient-label d-block">Sodium</span>
+                <span class="nutrient-value">{{ daily_summary.sodium | round(1) }} g</span>
+            </div>
+            <div class="col">
+                <span class="nutrient-label d-block">Vit_D</span>
+                <span class="nutrient-value">{{ daily_summary.vit_d | round(1) }} g</span>
+            </div>
             <!-- Add other summary nutrients here -->
         </div>
     </div>
@@ -144,6 +160,10 @@
                             <th>Fib</th>
                             <th>Sug</th>
                             <th>Calc</th>
+                            <th>Iron</th>
+                            <th>Potassium</th>
+                            <th>Sodium</th>
+                            <th>Vit_D</th>
                             <th></th> {# Action column #}
                         </tr>
                     </thead>
@@ -169,6 +189,10 @@
                             <td>{{ log.calculated_fiber | round(1) }}</td>
                             <td>{{ log.calculated_sugar | round(1) }}</td>
                             <td>{{ log.calculated_calcium | round(1) }}</td>
+                            <td>{{ log.calculated_iron | round(1) }}</td>
+                            <td>{{ log.calculated_potassium | round(1) }}</td>
+                            <td>{{ log.calculated_sodium | round(1) }}</td>
+                            <td>{{ log.calculated_vit_d | round(1) }}</td>
                             <td>
                                 <form method="POST" action="{{ url_for('delete_log_entry', log_id=log.id) }}" style="display: inline;">
                                     <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Are you sure you want to delete this entry?');">×</button>

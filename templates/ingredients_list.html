@@ -39,6 +39,10 @@
             <th>Fib</th>
             <th>Sugar</th>
             <th>Calc</th>
+            <th>iron</th>
+            <th>Potassium</th>
+            <th>Sodium</th>
+            <th>Vit_D</th>
             <th>Sources</th>
             <th>Notes</th>
             <th>Actions</th>
@@ -46,7 +50,7 @@
     </thead>
     <tbody>
         {% for ing in ingredients %}
-        <tr>
+        <tr> {# Start of main ingredient row #}
             <td>{{ ing.name }}</td>
             <td>{{ ing.category | default('-', true) }}</td>
             <td>{{ ing.typical_unit }}</td>
@@ -58,7 +62,11 @@
             <td>{{ ing.fiber | round(1) if ing.fiber is not none else '-' }}</td>
             <td>{{ ing.sugar | round(1) if ing.sugar is not none else '-' }}</td>
             <td>{{ ing.calcium | round(1) if ing.calcium is not none else '-' }}</td>
-            <td>{# <-- NEW Column Data --> #}
+            <td>{{ ing.iron | round(1) if ing.iron is not none else '-' }}</td>
+            <td>{{ ing.potassium | round(1) if ing.potassium is not none else '-' }}</td>
+            <td>{{ ing.sodium | round(1) if ing.sodium is not none else '-' }}</td>
+            <td>{{ ing.vit_d | round(1) if ing.vit_d is not none else '-' }}</td>
+            <td>{# Source Column #}
                 {% if ing.data_source == 'nutritionix' %}
                     <span class="badge bg-success" title="{{ ing.api_info or 'Fetched via API' }}">Nutritionix</span>
                 {% elif ing.data_source %}
@@ -68,14 +76,27 @@
                 {% endif %}
             </td>
             <td class="text-truncate" style="max-width: 150px;">{{ ing.notes | default('', true) }}</td>
-            <td>
+            <td>{# Action Buttons Cell #}
                 <a href="{{ url_for('edit_ingredient', ingredient_id=ing.id) }}" class="btn btn-sm btn-warning mb-1 d-inline-block">Edit</a>
                 <form method="POST" action="{{ url_for('delete_ingredient', ingredient_id=ing.id) }}" style="display: inline;" onsubmit="return confirm('Delete ingredient \'{{ ing.name }}\'?');">
                     <button type="submit" class="btn btn-sm btn-danger mb-1">Delete</button>
                 </form>
             </td>
-        </tr>
-        {% endfor %}
+        </tr> {# End of main ingredient row #}
+
+            {# Other Details Row #}
+            {% if ing.other_details %} {# <<< IF BLOCK OPENED >>> #}
+            <tr class="table-secondary table-group-divider">
+                 <td colspan="18"> {# Count columns: 1 Name + 1 Cat + 1 Unit + 1 Qty + 11 Nutrients + 1 Source + 1 Notes + 1 Action = 18? RECOUNT YOUR COLUMNS! #}
+                     <small><strong>Other API Details:</strong>
+                         {% for key, value in ing.other_details.items() %}
+                             <span class="badge bg-light text-dark ms-1" title="{{ key }}">{{ key.replace('_', ' ')|title }}: {{ value }}</span>
+                         {% endfor %}
+                     </small>
+                 </td>
+            </tr>
+            {% endif %} {# <<< **** ADD THIS MISSING ENDIF **** >>> #}
+        {% endfor %} {# <<< End of main loop >>> #}
     </tbody>
 </table>
 </div>

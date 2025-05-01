@@ -28,6 +28,10 @@
             <small>Fib: {{ recipe.total_fiber|round(1) if recipe.total_fiber is not none else '-' }}g</small>
             <small>Sugar: {{ recipe.total_sugar|round(1) if recipe.total_sugar is not none else '-' }}g</small>
             <small>Calc: {{ recipe.total_calcium|round(1) if recipe.total_calcium is not none else '-' }}mg</small>
+            <small>Iron: {{ recipe.total_iron|round(1) if recipe.total_iron is not none else '-' }}g</small>
+            <small>Potassium : {{ recipe.total_potassium|round(1) if recipe.total_potassium is not none else '-' }}g</small>
+            <small>Sodium : {{ recipe.total_sodium|round(1) if recipe.total_sodium is not none else '-' }}g</small>
+            <small>Vit_D: {{ recipe.total_vit_d|round(1) if recipe.total_vit_d is not none else '-' }}mg</small>
          </div>
     </a>
     {% endfor %}

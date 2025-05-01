@@ -92,6 +92,37 @@
             {% endif %}
         </div>
 
+        <div class="col-md-3">
+            <label for="{{ form.iron.id }}" class="form-label">{{ form.iron.label }}</label>
+            {{ form.iron(class="form-control" + (" is-invalid" if form.iron.errors else ""), type="number", step="any") }}
+             {% if form.iron.errors %}
+                <div class="invalid-feedback">{% for error in form.iron.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+         <div class="col-md-3">
+            <label for="{{ form.potassium.id }}" class="form-label">{{ form.potassium.label }} (Optional)</label>
+            {{ form.potassium(class="form-control" + (" is-invalid" if form.potassium.errors else ""), type="number", step="any") }}
+             {% if form.potassium.errors %}
+                <div class="invalid-feedback">{% for error in form.potassium.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-3">
+            <label for="{{ form.sodium.id }}" class="form-label">{{ form.sodium.label }} (Optional)</label>
+            {{ form.sodium(class="form-control" + (" is-invalid" if form.sodium.errors else ""), type="number", step="any") }}
+             {% if form.sodium.errors %}
+                <div class="invalid-feedback">{% for error in form.sodium.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-3">
+            <label for="{{ form.vit_d.id }}" class="form-label">{{ form.vit_d.label }} (Optional)</label>
+            {{ form.vit_d(class="form-control" + (" is-invalid" if form.vit_d.errors else ""), type="number", step="any") }}
+             {% if form.vit_d.errors %}
+                <div class="invalid-feedback">{% for error in form.vit_d.errors %}{{ error }}{% endfor %}</div>
+            {% endif %}
+        </div>
         <div class="col-12">
              <label for="{{ form.notes.id }}" class="form-label">{{ form.notes.label }} (Optional)</label>
             {{ form.notes(class="form-control" + (" is-invalid" if form.notes.errors else ""), rows="3") }}

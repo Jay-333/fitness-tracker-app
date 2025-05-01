@@ -85,6 +85,26 @@
            {{ form.calcium(class="form-control" + (" is-invalid" if form.calcium.errors else ""), type="number", step="any") }}
             {% if form.calcium.errors %}<div class="invalid-feedback d-block">{% for error in form.calcium.errors %}{{ error }}{% endfor %}</div>{% endif %}
         </div>
+        <div class="col-md-4 col-sm-6">
+            <label for="{{ form.iron.id }}" class="form-label">{{ form.iron.label }}</label>
+           {{ form.iron(class="form-control" + (" is-invalid" if form.iron.errors else ""), type="number", step="any") }}
+            {% if form.iron.errors %}<div class="invalid-feedback d-block">{% for error in form.iron.errors %}{{ error }}{% endfor %}</div>{% endif %}
+       </div>
+       <div class="col-md-4 col-sm-6">
+            <label for="{{ form.potassium.id }}" class="form-label">{{ form.potassium.label }}</label>
+           {{ form.potassium(class="form-control" + (" is-invalid" if form.potassium.errors else ""), type="number", step="any") }}
+            {% if form.potassium.errors %}<div class="invalid-feedback d-block">{% for error in form.potassium.errors %}{{ error }}{% endfor %}</div>{% endif %}
+       </div>
+       <div class="col-md-4 col-sm-6">
+           <label for="{{ form.sodium.id }}" class="form-label">{{ form.sodium.label }}</label>
+          {{ form.sodium(class="form-control" + (" is-invalid" if form.sodium.errors else ""), type="number", step="any") }}
+           {% if form.sodium.errors %}<div class="invalid-feedback d-block">{% for error in form.sodium.errors %}{{ error }}{% endfor %}</div>{% endif %}
+       </div>
+       <div class="col-md-4 col-sm-6">
+           <label for="{{ form.vit_d.id }}" class="form-label">{{ form.vit_d.label }}</label>
+          {{ form.vit_d(class="form-control" + (" is-invalid" if form.vit_d.errors else ""), type="number", step="any") }}
+           {% if form.vit_d.errors %}<div class="invalid-feedback d-block">{% for error in form.vit_d.errors %}{{ error }}{% endfor %}</div>{% endif %}
+       </div>
         <!-- Add fields for other nutrients if added to model/form -->
     </div>
 
